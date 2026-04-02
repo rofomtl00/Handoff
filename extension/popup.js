@@ -738,8 +738,14 @@ document.getElementById('addPath').addEventListener('keydown', e => { if (e.key 
 document.getElementById('browseBtn').addEventListener('click', browseFolder);
 
 async function browseFolder() {
-  // Open the full dashboard in a tab — tabs don't lose focus like popups do
-  api.tabs.create({url: 'http://localhost:9090'});
+  const statusEl = document.getElementById('serverStatus');
+  statusEl.className = 'status status-working';
+  statusEl.textContent = 'Opening folder picker...';
+  // Send to background script — it survives even if popup closes
+  api.runtime.sendMessage({action: 'browse_and_add'});
+  // Popup will likely close when file dialog opens — that's ok
+  // Background script handles it. When user reopens popup, project will be there.
+  statusEl.textContent = 'Select a folder. If popup closes, reopen it after selecting — your project will be added.';
 }
 document.getElementById('projectCopySummaryBtn').addEventListener('click', projectCopySummary);
 document.getElementById('projectCopyBtn').addEventListener('click', projectCopyFull);
