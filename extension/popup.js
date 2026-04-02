@@ -730,12 +730,14 @@ async function browseFolder() {
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'browse'});
+    // Browse AND add in one step — avoids popup losing focus
+    const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'browse_and_add'});
     if (response && response.ok && response.path) {
-      document.getElementById('addPath').value = response.path;
+      // Project was added via native host → reload list
+      loadProjects();
     }
   } catch(e) {
-    // Native messaging not available — user types path manually
+    // Native messaging not available
   }
   btn.disabled = false;
   btn.textContent = 'Browse';

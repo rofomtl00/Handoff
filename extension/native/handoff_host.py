@@ -139,6 +139,24 @@ def main():
             result = browse_folder()
             send_message(result)
 
+        elif action == 'browse_and_add':
+            result = browse_folder()
+            if result.get('ok') and result.get('path'):
+                # Add project via server API
+                import urllib.request
+                try:
+                    data = json.dumps({"path": result["path"]}).encode()
+                    req = urllib.request.Request(
+                        'http://localhost:9090/api/projects/add',
+                        data=data, method='POST',
+                        headers={'Content-Type': 'application/json'})
+                    urllib.request.urlopen(req, timeout=10)
+                    result["added"] = True
+                except Exception as e:
+                    result["added"] = False
+                    result["add_error"] = str(e)
+            send_message(result)
+
         elif action == 'ping':
             send_message({"ok": True, "pong": True})
 
