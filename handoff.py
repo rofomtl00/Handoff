@@ -79,6 +79,95 @@ MAX_FILE_SIZE = 100_000  # Skip files larger than 100KB for content analysis
 MAX_FILES_TO_READ = 50   # Don't read more than 50 files for summary
 
 
+def _extract_purpose(lines: list, ext: str) -> str:
+    """Extract file purpose from docstring, module comment, or first meaningful comment."""
+    if not lines:
+        return ""
+    # Python: look for module docstring
+    if ext == ".py":
+        in_docstring = False
+        doc_lines = []
+        for line in lines[:30]:
+            stripped = line.strip()
+            if not in_docstring:
+                if stripped.startswith('"""') or stripped.startswith("'''"):
+                    in_docstring = True
+                    # Single-line docstring
+                    if stripped.count('"""') >= 2 or stripped.count("'''") >= 2:
+                        return stripped.strip('"\'').strip()
+                    content = stripped.lstrip('"\'').strip()
+                    if content:
+                        doc_lines.append(content)
+                elif stripped.startswith("#") and not stripped.startswith("#!"):
+                    return stripped.lstrip("# ").strip()
+                elif stripped and not stripped.startswith("import") and not stripped.startswith("from"):
+                    break
+            else:
+                if '"""' in stripped or "'''" in stripped:
+                    content = stripped.rstrip('"\'').strip()
+                    if content:
+                        doc_lines.append(content)
+                    break
+                doc_lines.append(stripped)
+        # Return first meaningful line of docstring
+        for dl in doc_lines:
+            dl = dl.strip().rstrip("=").rstrip("-").strip()
+            if dl and len(dl) > 5:
+                return dl[:100]
+
+    # JS/TS: look for /** */ or // at top
+    if ext in (".js", ".ts", ".tsx", ".jsx"):
+        for line in lines[:15]:
+            stripped = line.strip()
+            if stripped.startswith("/**"):
+                desc = stripped.lstrip("/**").rstrip("*/").strip()
+                if desc:
+                    return desc[:100]
+            elif stripped.startswith("//"):
+                desc = stripped.lstrip("/ ").strip()
+                if desc and len(desc) > 5:
+                    return desc[:100]
+            elif stripped and not stripped.startswith("import") and not stripped.startswith("'use"):
+                break
+
+    # Go/Rust/Java: look for // at top
+    if ext in (".go", ".rs", ".java", ".c", ".cpp", ".h"):
+        for line in lines[:10]:
+            stripped = line.strip()
+            if stripped.startswith("//"):
+                desc = stripped.lstrip("/ ").strip()
+                if desc and len(desc) > 5 and not desc.startswith("Package"):
+                    return desc[:100]
+            elif stripped and not stripped.startswith("package") and not stripped.startswith("use"):
+                break
+
+    return ""
+
+
+def _extract_imports(lines: list, ext: str) -> list:
+    """Extract import targets to map file connections."""
+    imports = []
+    if ext == ".py":
+        for line in lines[:80]:
+            stripped = line.strip()
+            if stripped.startswith("from ") and " import " in stripped:
+                module = stripped.split("from ")[1].split(" import")[0].strip()
+                imports.append(module)
+            elif stripped.startswith("import "):
+                module = stripped.split("import ")[1].split(" as")[0].split(",")[0].strip()
+                imports.append(module)
+    elif ext in (".js", ".ts", ".tsx", ".jsx"):
+        for line in lines[:80]:
+            stripped = line.strip()
+            if "require(" in stripped or "from '" in stripped or 'from "' in stripped:
+                for q in ("'", '"'):
+                    if f"from {q}" in stripped:
+                        parts = stripped.split(f"from {q}")
+                        if len(parts) > 1:
+                            imports.append(parts[1].split(q)[0])
+    return imports[:20]
+
+
 def scan_project(root: str) -> dict:
     """Scan a project directory and extract structure and metadata."""
     root = os.path.abspath(root)
@@ -131,12 +220,21 @@ def scan_project(root: str) -> dict:
                 try:
                     size = os.path.getsize(full_path)
                     lines = 0
+                    purpose = ""
+                    imports = []
                     if size < MAX_FILE_SIZE:
                         with open(full_path, "r", errors="ignore") as f:
-                            lines = sum(1 for _ in f)
+                            file_lines = f.readlines()
+                        lines = len(file_lines)
+                        # Extract purpose from docstring or first comment
+                        purpose = _extract_purpose(file_lines, ext)
+                        # Extract imports to map connections
+                        imports = _extract_imports(file_lines, ext)
                     result["total_lines"] += lines
                     file_list.append({
                         "path": rel_path,
+                        "purpose": purpose,
+                        "imports": imports,
                         "ext": ext,
                         "size": size,
                         "lines": lines,
@@ -311,8 +409,47 @@ def generate_handoff(root: str, include_content: bool = False) -> str:
     md.append(f"| File | Lines | Purpose |")
     md.append(f"|------|-------|---------|")
     for f in scan["key_files"][:15]:
-        md.append(f"| `{f['path']}` | {f['lines']} | |")
+        purpose = f.get("purpose", "")
+        md.append(f"| `{f['path']}` | {f['lines']} | {purpose} |")
     md.append(f"")
+
+    # File connections — which files import which
+    connections = {}
+    project_name = scan["name"].lower()
+    for f in scan["key_files"]:
+        local_imports = [i for i in f.get("imports", [])
+                         if not i.startswith(("os", "sys", "json", "time", "datetime",
+                                              "threading", "collections", "hashlib", "csv",
+                                              "math", "re", "logging", "pathlib", "typing",
+                                              "flask", "ccxt", "pandas", "numpy", "requests"))]
+        if local_imports:
+            connections[f["path"]] = local_imports
+    if connections:
+        md.append(f"### File Connections")
+        md.append(f"")
+        for fpath, imps in list(connections.items())[:15]:
+            md.append(f"- `{fpath}` imports: {', '.join(f'`{i}`' for i in imps[:8])}")
+        md.append(f"")
+
+    # Folder structure
+    folders = {}
+    for f in scan["key_files"]:
+        parts = f["path"].split(os.sep)
+        if len(parts) > 1:
+            folder = parts[0] + "/"
+            if folder not in folders:
+                folders[folder] = {"files": 0, "lines": 0, "purposes": []}
+            folders[folder]["files"] += 1
+            folders[folder]["lines"] += f.get("lines", 0)
+            if f.get("purpose"):
+                folders[folder]["purposes"].append(f["purpose"])
+    if folders:
+        md.append(f"### Folder Structure")
+        md.append(f"")
+        for folder, info in sorted(folders.items()):
+            desc = info["purposes"][0] if info["purposes"] else ""
+            md.append(f"- `{folder}` — {info['files']} files, {info['lines']:,} lines{' — ' + desc if desc else ''}")
+        md.append(f"")
 
     if scan["config_files"]:
         md.append(f"### Config Files")
