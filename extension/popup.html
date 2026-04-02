@@ -70,9 +70,18 @@ body{width:380px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,
     <h3>Context Generated</h3>
     <div class="stats" id="stats"></div>
     <div class="preview" id="preview"></div>
-    <button class="btn btn-green" id="copyBtn" style="margin-top:8px">
-      Copy to Clipboard
-    </button>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="btn btn-green" id="copySummaryBtn" style="flex:1;font-size:13px">
+        Copy Summary
+      </button>
+      <button class="btn btn-primary" id="copyBtn" style="flex:1;font-size:13px">
+        Copy Full
+      </button>
+      <button class="btn btn-blue" id="downloadBtn" style="flex:1;font-size:13px">
+        Download .md
+      </button>
+    </div>
+    <div style="font-size:11px;color:#666;margin-top:4px">Summary = paste into chat (saves tokens). Full file = attach as reference.</div>
 
     <div class="target">
       <label>Quick paste into:</label>

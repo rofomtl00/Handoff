@@ -154,8 +154,9 @@ async function doExtract() {
       return;
     }
 
-    // Generate HANDOFF context
+    // Generate HANDOFF context (full + summary)
     extractedContext = hasCreative ? generateCreativeContext(data) : generateContext(data);
+    extractedSummary = generateSummary(data);
 
     // Show result
     const mode = data.mode || 'chat';
@@ -398,16 +399,95 @@ function extractCurrentTask(messages) {
   return '';
 }
 
-async function copyContext() {
+let extractedSummary = '';
+
+function generateSummary(data) {
+  const lines = [];
+  const pInfo = PLATFORMS[data.platform] || {name: data.platform};
+  const mode = data.mode || pInfo.mode || 'chat';
+
+  lines.push('# HANDOFF — Project Summary');
+  lines.push('');
+  lines.push('Source: ' + pInfo.name + ' | ' + data.title);
+  lines.push('Extracted: ' + new Date().toISOString().split('T')[0]);
+  lines.push('Full context: see attached HANDOFF.md file');
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  if (mode !== 'chat' && data.creative) {
+    const c = data.creative;
+    if (c.prompts?.length) {
+      lines.push('## Prompts Used');
+      c.prompts.forEach((p, i) => lines.push((i+1) + '. ' + p.text.slice(0, 200)));
+      lines.push('');
+    }
+    if (Object.keys(c.settings || {}).length) {
+      lines.push('## Key Settings');
+      for (const [k, v] of Object.entries(c.settings).slice(0, 10)) {
+        lines.push('- ' + k + ': ' + v);
+      }
+      lines.push('');
+    }
+    if (c.generations?.length) {
+      lines.push('## Generations: ' + c.generations.length + ' outputs');
+      lines.push('');
+    }
+  } else if (data.messages?.length) {
+    // Chat summary: extract key decisions and current task
+    const decisions = extractDecisions(data.messages);
+    const files = extractFileReferences(data.messages.map(m => m.content).join('\n'));
+    const currentTask = extractCurrentTask(data.messages);
+
+    lines.push('## Conversation: ' + data.messages.length + ' messages');
+    lines.push('');
+
+    if (files.length) {
+      lines.push('## Files Referenced');
+      files.slice(0, 15).forEach(f => lines.push('- `' + f + '`'));
+      lines.push('');
+    }
+
+    if (decisions.length) {
+      lines.push('## Key Decisions');
+      decisions.slice(0, 10).forEach(d => lines.push('- ' + d));
+      lines.push('');
+    }
+
+    if (currentTask) {
+      lines.push('## Current Task');
+      lines.push(currentTask.slice(0, 300));
+      lines.push('');
+    }
+
+    // Last 3 exchanges as context
+    lines.push('## Recent Context (last 3 exchanges)');
+    lines.push('');
+    const recent = data.messages.slice(-6);
+    recent.forEach(m => {
+      const role = m.role === 'user' ? '**User:**' : '**Assistant:**';
+      lines.push(role);
+      lines.push(m.content.length > 300 ? m.content.slice(0, 300) + '...' : m.content);
+      lines.push('');
+    });
+  }
+
+  lines.push('---');
+  lines.push('*For full context, attach the downloaded HANDOFF.md file to this conversation.*');
+
+  return lines.join('\n');
+}
+
+async function copyClipboard(text, btnId) {
   try {
-    await navigator.clipboard.writeText(extractedContext);
-    const btn = document.getElementById('copyBtn');
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById(btnId);
     const orig = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = orig; }, 1500);
   } catch(e) {
     const ta = document.createElement('textarea');
-    ta.value = extractedContext;
+    ta.value = text;
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
@@ -415,10 +495,33 @@ async function copyContext() {
   }
 }
 
+async function copyContext() {
+  await copyClipboard(extractedContext, 'copyBtn');
+}
+
+async function copySummary() {
+  await copyClipboard(extractedSummary, 'copySummaryBtn');
+}
+
+function downloadContext() {
+  const blob = new Blob([extractedContext], {type: 'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'HANDOFF.md';
+  a.click();
+  URL.revokeObjectURL(url);
+  const btn = document.getElementById('downloadBtn');
+  const orig = btn.textContent;
+  btn.textContent = 'Saved!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
 function openTarget() {
   const url = document.getElementById('targetAgent').value;
   if (url) {
-    navigator.clipboard.writeText(extractedContext).then(() => {
+    // Copy summary (not full) — saves tokens. User attaches full file separately.
+    navigator.clipboard.writeText(extractedSummary).then(() => {
       api.tabs.create({url: url});
     });
   }
@@ -427,4 +530,6 @@ function openTarget() {
 // Attach event listeners
 document.getElementById('extractBtn').addEventListener('click', doExtract);
 document.getElementById('copyBtn').addEventListener('click', copyContext);
+document.getElementById('copySummaryBtn').addEventListener('click', copySummary);
+document.getElementById('downloadBtn').addEventListener('click', downloadContext);
 document.getElementById('targetAgent').addEventListener('change', openTarget);
