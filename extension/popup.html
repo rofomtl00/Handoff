@@ -106,34 +106,41 @@ const PLATFORMS = {
 };
 
 // Detect platform on load
-api.tabs.query({active: true, currentWindow: true}, tabs => {
-  const url = tabs[0]?.url || '';
-  let platform = 'unknown';
-  if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) platform = 'chatgpt';
-  else if (url.includes('claude.ai')) platform = 'claude';
-  else if (url.includes('gemini.google.com')) platform = 'gemini';
-  else if (url.includes('copilot.microsoft.com')) platform = 'copilot';
+// Detect platform — handle both callback (Chrome) and promise (Firefox) styles
+(async function detectPlatformInit() {
+  try {
+    const tabs = await api.tabs.query({active: true, currentWindow: true});
+    const url = tabs[0]?.url || '';
+    let platform = 'unknown';
+    if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) platform = 'chatgpt';
+    else if (url.includes('claude.ai')) platform = 'claude';
+    else if (url.includes('gemini.google.com')) platform = 'gemini';
+    else if (url.includes('copilot.microsoft.com')) platform = 'copilot';
 
-  const info = PLATFORMS[platform];
-  document.getElementById('platformDot').className = 'dot dot-' + info.color;
-  document.getElementById('platformName').textContent = info.name;
+    const info = PLATFORMS[platform];
+    document.getElementById('platformDot').className = 'dot dot-' + info.color;
+    document.getElementById('platformName').textContent = info.name;
 
-  if (platform === 'unknown') {
-    document.getElementById('status').className = 'status status-err';
-    document.getElementById('status').textContent = 'Navigate to ChatGPT, Claude, Gemini, or Copilot first.';
-    document.getElementById('extractBtn').disabled = true;
+    if (platform === 'unknown') {
+      document.getElementById('status').className = 'status status-err';
+      document.getElementById('status').textContent = 'Navigate to ChatGPT, Claude, Gemini, or Copilot first. Current page: ' + (url.split('/')[2] || 'unknown');
+      document.getElementById('extractBtn').disabled = true;
+    }
+
+    // Remove current platform from target list
+    const select = document.getElementById('targetAgent');
+    for (let i = select.options.length - 1; i >= 0; i--) {
+      const opt = select.options[i];
+      if (platform === 'chatgpt' && opt.value.includes('chatgpt')) opt.remove();
+      if (platform === 'claude' && opt.value.includes('claude')) opt.remove();
+      if (platform === 'gemini' && opt.value.includes('gemini')) opt.remove();
+      if (platform === 'copilot' && opt.value.includes('copilot')) opt.remove();
+    }
+  } catch(e) {
+    document.getElementById('platformName').textContent = 'Error: ' + e.message;
+    document.getElementById('platformDot').className = 'dot dot-err';
   }
-
-  // Remove current platform from target list
-  const select = document.getElementById('targetAgent');
-  for (let i = select.options.length - 1; i >= 0; i--) {
-    const opt = select.options[i];
-    if (platform === 'chatgpt' && opt.value.includes('chatgpt')) opt.remove();
-    if (platform === 'claude' && opt.value.includes('claude')) opt.remove();
-    if (platform === 'gemini' && opt.value.includes('gemini')) opt.remove();
-    if (platform === 'copilot' && opt.value.includes('copilot')) opt.remove();
-  }
-});
+})();
 
 async function doExtract() {
   const btn = document.getElementById('extractBtn');

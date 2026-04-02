@@ -3,7 +3,7 @@
   "name": "Handoff — AI Context Transfer",
   "version": "0.1.0",
   "description": "One-click transfer of AI conversations between ChatGPT, Claude, Gemini, and any other agent.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "tabs", "storage", "scripting"],
   "browser_specific_settings": {
     "gecko": {
       "id": "handoff@rofomtl00",
