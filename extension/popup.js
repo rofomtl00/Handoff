@@ -184,9 +184,10 @@ async function doExtract() {
 
 function generateContext(data) {
   const lines = [];
-  lines.push('# HANDOFF — Conversation Context');
+  lines.push('# HANDOFF — Continuing a project from another AI agent');
   lines.push('');
-  lines.push('Extracted from ' + (PLATFORMS[data.platform]?.name || data.platform) + ' on ' + new Date().toISOString().split('T')[0]);
+  lines.push('I was working on this project with ' + (PLATFORMS[data.platform]?.name || data.platform) + ' and need to continue here. Below is the full conversation context. Please read it, understand the project state, decisions made, and current task, then continue where we left off.');
+  lines.push('');
   lines.push('Source: ' + data.title);
   lines.push('Messages: ' + data.messages.length);
   lines.push('');
@@ -246,11 +247,11 @@ function generateCreativeContext(data) {
   const modeLabel = {video:'Video',image:'Image',music:'Music','3d':'3D',design:'Design',writing:'Writing'}[mode] || 'Creative';
   const c = data.creative || {};
 
-  lines.push('# HANDOFF — ' + modeLabel + ' Project Context');
+  lines.push('# HANDOFF — Continuing a ' + modeLabel.toLowerCase() + ' project from another AI agent');
   lines.push('');
-  lines.push('Extracted from ' + pInfo.name + ' on ' + new Date().toISOString().split('T')[0]);
+  lines.push('I was working on this ' + modeLabel.toLowerCase() + ' project with ' + pInfo.name + ' and need to continue here. Below are the prompts, settings, and project state. Please read it and continue where we left off.');
+  lines.push('');
   lines.push('Source: ' + data.title);
-  lines.push('Mode: ' + modeLabel);
   lines.push('');
   lines.push('---');
   lines.push('');
@@ -406,11 +407,12 @@ function generateSummary(data) {
   const pInfo = PLATFORMS[data.platform] || {name: data.platform};
   const mode = data.mode || pInfo.mode || 'chat';
 
-  lines.push('# HANDOFF — Project Summary');
+  lines.push('# HANDOFF — Continuing a project from another AI agent');
+  lines.push('');
+  lines.push('I was working on this project with ' + pInfo.name + ' and need to continue here. Below is the context from that conversation. Please read it carefully and continue where we left off.');
   lines.push('');
   lines.push('Source: ' + pInfo.name + ' | ' + data.title);
   lines.push('Extracted: ' + new Date().toISOString().split('T')[0]);
-  lines.push('Full context: see attached HANDOFF.md file');
   lines.push('');
   lines.push('---');
   lines.push('');
@@ -473,7 +475,8 @@ function generateSummary(data) {
   }
 
   lines.push('---');
-  lines.push('*For full context, attach the downloaded HANDOFF.md file to this conversation.*');
+  lines.push('');
+  lines.push('Please continue this project from where we left off. If a HANDOFF.md file is attached, refer to it for the full conversation history.');
 
   return lines.join('\n');
 }
