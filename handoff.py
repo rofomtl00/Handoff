@@ -1,0 +1,419 @@
+"""
+Handoff — Universal AI Agent Context
+=====================================
+Generates a portable project context file that any AI agent can read.
+Switch between Claude, ChatGPT, Gemini, Copilot, Cursor — without losing context.
+
+Usage:
+    python handoff.py                    # Scan current directory, generate HANDOFF.md
+    python handoff.py /path/to/project   # Scan specific project
+    python handoff.py --update           # Update existing HANDOFF.md with changes
+"""
+
+import os
+import sys
+import json
+import argparse
+from datetime import datetime, timezone
+from pathlib import Path
+
+__version__ = "0.1.0"
+
+# Files to scan for existing agent context
+AGENT_CONTEXT_FILES = [
+    "CLAUDE.md", ".claude/settings.json",
+    ".cursorrules", ".cursorignore",
+    ".github/copilot-instructions.md",
+    ".aider.conf.yml", ".aider.chat.history.md",
+    "AGENTS.md", "AI_CONTEXT.md",
+    "README.md", "CONTRIBUTING.md",
+    "ARCHITECTURE.md", "DECISIONS.md",
+]
+
+# Files that reveal project type and structure
+PROJECT_MARKERS = {
+    "package.json": "javascript/node",
+    "tsconfig.json": "typescript",
+    "requirements.txt": "python",
+    "setup.py": "python",
+    "pyproject.toml": "python",
+    "Cargo.toml": "rust",
+    "go.mod": "go",
+    "pom.xml": "java/maven",
+    "build.gradle": "java/gradle",
+    "Gemfile": "ruby",
+    "composer.json": "php",
+    "Dockerfile": "docker",
+    "docker-compose.yml": "docker",
+    "Makefile": "make",
+    ".env": "env-config",
+    ".env.example": "env-config",
+    "config.yaml": "yaml-config",
+    "config.yml": "yaml-config",
+}
+
+# Directories to skip
+SKIP_DIRS = {
+    "node_modules", "venv", ".venv", "env", ".env",
+    "__pycache__", ".git", ".hg", ".svn",
+    "dist", "build", ".next", ".nuxt",
+    "target", "bin", "obj",
+    ".idea", ".vscode", ".cursor",
+    "vendor", "bower_components",
+    ".tox", ".pytest_cache", ".mypy_cache",
+    "coverage", ".coverage", "htmlcov",
+}
+
+# Extensions to analyze
+CODE_EXTENSIONS = {
+    ".py", ".js", ".ts", ".tsx", ".jsx",
+    ".go", ".rs", ".java", ".kt", ".scala",
+    ".rb", ".php", ".c", ".cpp", ".h",
+    ".cs", ".swift", ".dart",
+    ".sql", ".sh", ".bash",
+    ".html", ".css", ".scss",
+    ".yaml", ".yml", ".toml", ".json",
+}
+
+MAX_FILE_SIZE = 100_000  # Skip files larger than 100KB for content analysis
+MAX_FILES_TO_READ = 50   # Don't read more than 50 files for summary
+
+
+def scan_project(root: str) -> dict:
+    """Scan a project directory and extract structure and metadata."""
+    root = os.path.abspath(root)
+    result = {
+        "root": root,
+        "name": os.path.basename(root),
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "languages": set(),
+        "frameworks": [],
+        "structure": {},
+        "key_files": [],
+        "agent_contexts": {},
+        "entry_points": [],
+        "config_files": [],
+        "total_files": 0,
+        "total_lines": 0,
+    }
+
+    # Walk the directory
+    file_list = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Skip ignored directories
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        rel_dir = os.path.relpath(dirpath, root)
+        if rel_dir == ".":
+            rel_dir = ""
+
+        for fname in filenames:
+            rel_path = os.path.join(rel_dir, fname) if rel_dir else fname
+            full_path = os.path.join(dirpath, fname)
+            ext = os.path.splitext(fname)[1].lower()
+
+            # Project markers
+            if fname in PROJECT_MARKERS:
+                result["languages"].add(PROJECT_MARKERS[fname])
+                result["config_files"].append(rel_path)
+
+            # Agent context files
+            if rel_path in AGENT_CONTEXT_FILES or fname in [os.path.basename(f) for f in AGENT_CONTEXT_FILES]:
+                try:
+                    with open(full_path, "r", errors="ignore") as f:
+                        content = f.read(50000)  # First 50KB
+                    result["agent_contexts"][rel_path] = content
+                except Exception:
+                    pass
+
+            # Code files
+            if ext in CODE_EXTENSIONS:
+                result["total_files"] += 1
+                try:
+                    size = os.path.getsize(full_path)
+                    lines = 0
+                    if size < MAX_FILE_SIZE:
+                        with open(full_path, "r", errors="ignore") as f:
+                            lines = sum(1 for _ in f)
+                    result["total_lines"] += lines
+                    file_list.append({
+                        "path": rel_path,
+                        "ext": ext,
+                        "size": size,
+                        "lines": lines,
+                    })
+                except Exception:
+                    pass
+
+            # Entry points
+            if fname in ("main.py", "app.py", "index.js", "index.ts", "main.go",
+                         "main.rs", "Main.java", "Program.cs", "combined_bot.py",
+                         "server.py", "proxy.py", "run.py"):
+                result["entry_points"].append(rel_path)
+
+    # Detect frameworks from content
+    result["languages"] = sorted(result["languages"])
+
+    # Build directory structure (top 2 levels)
+    structure = {}
+    for f in file_list:
+        parts = f["path"].split(os.sep)
+        if len(parts) == 1:
+            structure[f["path"]] = f"({f['lines']} lines)"
+        elif len(parts) <= 3:
+            d = parts[0] + "/" if len(parts) > 1 else ""
+            if d not in structure:
+                structure[d] = []
+            if isinstance(structure[d], list):
+                structure[d].append(parts[-1])
+    result["structure"] = structure
+
+    # Key files: largest and most connected
+    file_list.sort(key=lambda x: x["lines"], reverse=True)
+    result["key_files"] = file_list[:20]
+
+    return result
+
+
+def read_git_info(root: str) -> dict:
+    """Extract recent git history for decision context."""
+    import subprocess
+    info = {"recent_commits": [], "branches": [], "remotes": []}
+    try:
+        # Recent commits
+        out = subprocess.run(
+            ["git", "log", "--oneline", "-20", "--no-decorate"],
+            capture_output=True, text=True, cwd=root, timeout=5
+        )
+        if out.returncode == 0:
+            info["recent_commits"] = out.stdout.strip().split("\n")
+
+        # Current branch
+        out = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True, text=True, cwd=root, timeout=5
+        )
+        if out.returncode == 0:
+            info["current_branch"] = out.stdout.strip()
+
+        # Remotes
+        out = subprocess.run(
+            ["git", "remote", "-v"],
+            capture_output=True, text=True, cwd=root, timeout=5
+        )
+        if out.returncode == 0:
+            info["remotes"] = [l.strip() for l in out.stdout.strip().split("\n") if l.strip()]
+
+    except Exception:
+        pass
+    return info
+
+
+def read_dependencies(root: str) -> list:
+    """Extract project dependencies."""
+    deps = []
+
+    # Python
+    req_path = os.path.join(root, "requirements.txt")
+    if os.path.exists(req_path):
+        try:
+            with open(req_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        deps.append(line)
+        except Exception:
+            pass
+
+    # Node
+    pkg_path = os.path.join(root, "package.json")
+    if os.path.exists(pkg_path):
+        try:
+            with open(pkg_path) as f:
+                pkg = json.load(f)
+            for section in ("dependencies", "devDependencies"):
+                for name, ver in pkg.get(section, {}).items():
+                    deps.append(f"{name}@{ver}")
+        except Exception:
+            pass
+
+    return deps
+
+
+def extract_decisions(agent_contexts: dict) -> list:
+    """Extract key decisions from existing agent context files."""
+    decisions = []
+    for path, content in agent_contexts.items():
+        # Look for decision patterns
+        lines = content.split("\n")
+        for i, line in enumerate(lines):
+            lower = line.lower()
+            if any(kw in lower for kw in ["removed", "disabled", "don't", "never",
+                                           "always", "must", "important", "warning",
+                                           "deprecated", "replaced", "migrated"]):
+                # Get some context
+                context = line.strip()
+                if context and len(context) > 10:
+                    decisions.append({"source": path, "rule": context})
+    return decisions[:50]  # Cap at 50
+
+
+def generate_handoff(root: str, include_content: bool = False) -> str:
+    """Generate the HANDOFF.md file content."""
+    scan = scan_project(root)
+    git = read_git_info(root)
+    deps = read_dependencies(root)
+    decisions = extract_decisions(scan["agent_contexts"])
+
+    md = []
+    md.append(f"# HANDOFF — {scan['name']}")
+    md.append(f"")
+    md.append(f"Universal project context for AI agents. Generated by Handoff v{__version__}.")
+    md.append(f"Last updated: {scan['scanned_at']}")
+    md.append(f"")
+    md.append(f"---")
+    md.append(f"")
+
+    # Overview
+    md.append(f"## Overview")
+    md.append(f"")
+    md.append(f"- **Project:** {scan['name']}")
+    md.append(f"- **Path:** {scan['root']}")
+    md.append(f"- **Languages:** {', '.join(scan['languages']) if scan['languages'] else 'unknown'}")
+    md.append(f"- **Files:** {scan['total_files']} code files, {scan['total_lines']:,} total lines")
+    if scan["entry_points"]:
+        md.append(f"- **Entry points:** {', '.join(scan['entry_points'])}")
+    if git.get("current_branch"):
+        md.append(f"- **Branch:** {git['current_branch']}")
+    if git.get("remotes"):
+        remote = git["remotes"][0].split("\t")[1].split(" ")[0] if git["remotes"] else ""
+        if remote:
+            md.append(f"- **Repo:** {remote}")
+    md.append(f"")
+
+    # README summary (first 20 lines)
+    readme = scan["agent_contexts"].get("README.md", "")
+    if readme:
+        readme_lines = readme.strip().split("\n")[:20]
+        md.append(f"## What This Project Does")
+        md.append(f"")
+        for line in readme_lines:
+            md.append(line)
+        if len(readme.strip().split("\n")) > 20:
+            md.append(f"")
+            md.append(f"*(README truncated — see README.md for full docs)*")
+        md.append(f"")
+
+    # Architecture
+    md.append(f"## Architecture")
+    md.append(f"")
+    md.append(f"### Key Files (by size)")
+    md.append(f"")
+    md.append(f"| File | Lines | Purpose |")
+    md.append(f"|------|-------|---------|")
+    for f in scan["key_files"][:15]:
+        md.append(f"| `{f['path']}` | {f['lines']} | |")
+    md.append(f"")
+
+    if scan["config_files"]:
+        md.append(f"### Config Files")
+        md.append(f"")
+        for cf in scan["config_files"]:
+            md.append(f"- `{cf}`")
+        md.append(f"")
+
+    # Dependencies
+    if deps:
+        md.append(f"## Dependencies")
+        md.append(f"")
+        for d in deps[:30]:
+            md.append(f"- {d}")
+        if len(deps) > 30:
+            md.append(f"- *...and {len(deps) - 30} more*")
+        md.append(f"")
+
+    # Existing agent context
+    for path, content in scan["agent_contexts"].items():
+        if path == "README.md":
+            continue  # Already shown above
+        md.append(f"## Existing Context: {path}")
+        md.append(f"")
+        # Truncate long files
+        lines = content.strip().split("\n")
+        for line in lines[:100]:
+            md.append(line)
+        if len(lines) > 100:
+            md.append(f"")
+            md.append(f"*(Truncated — {len(lines)} lines total)*")
+        md.append(f"")
+
+    # Decisions and rules
+    if decisions:
+        md.append(f"## Key Decisions & Rules")
+        md.append(f"")
+        md.append(f"Extracted from project context files:")
+        md.append(f"")
+        for d in decisions[:30]:
+            md.append(f"- [{d['source']}] {d['rule']}")
+        md.append(f"")
+
+    # Recent git history
+    if git.get("recent_commits"):
+        md.append(f"## Recent Changes")
+        md.append(f"")
+        for c in git["recent_commits"][:15]:
+            md.append(f"- {c}")
+        md.append(f"")
+
+    # Instructions for agents
+    md.append(f"## For AI Agents")
+    md.append(f"")
+    md.append(f"This file was generated by Handoff (https://github.com/rofomtl00/Handoff).")
+    md.append(f"It provides portable project context that works across any AI coding assistant.")
+    md.append(f"")
+    md.append(f"When working on this project:")
+    md.append(f"1. Read the Architecture section to understand file layout")
+    md.append(f"2. Check Key Decisions before making changes that might conflict")
+    md.append(f"3. Check Recent Changes for current work in progress")
+    md.append(f"4. Respect any rules in Existing Context sections")
+    md.append(f"")
+    md.append(f"To update this file: `python handoff.py {scan['root']}`")
+
+    return "\n".join(md)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Handoff — Generate universal AI agent context for your project")
+    parser.add_argument("path", nargs="?", default=".",
+                        help="Project directory (default: current)")
+    parser.add_argument("--output", "-o", default="HANDOFF.md",
+                        help="Output filename (default: HANDOFF.md)")
+    parser.add_argument("--stdout", action="store_true",
+                        help="Print to stdout instead of file")
+    args = parser.parse_args()
+
+    root = os.path.abspath(args.path)
+    if not os.path.isdir(root):
+        print(f"Error: {root} is not a directory")
+        sys.exit(1)
+
+    print(f"Scanning {root}...")
+    content = generate_handoff(root)
+
+    if args.stdout:
+        print(content)
+    else:
+        out_path = os.path.join(root, args.output)
+        with open(out_path, "w") as f:
+            f.write(content)
+        lines = content.count("\n")
+        print(f"Generated {out_path} ({lines} lines)")
+        print(f"")
+        print(f"Copy this file to any AI agent as context:")
+        print(f"  - Paste into ChatGPT/Gemini as first message")
+        print(f"  - Place in project root for Cursor/Copilot/Claude Code")
+        print(f"  - Attach as file in any AI chat")
+
+
+if __name__ == "__main__":
+    main()
