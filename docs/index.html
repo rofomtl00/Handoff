@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Handoff — Switch AI Agents Without Losing Context</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;line-height:1.7}
+a{color:#a78bfa;text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:800px;margin:0 auto;padding:0 24px}
+
+.hero{padding:80px 0 40px;text-align:center}
+.hero h1{font-size:48px;font-weight:700;color:#fff;margin-bottom:12px}
+.hero h1 span{color:#a78bfa}
+.hero p{font-size:20px;color:#999;max-width:550px;margin:0 auto 32px}
+
+.download-box{background:#111;border:2px solid #7c3aed;border-radius:16px;padding:32px;text-align:center;max-width:500px;margin:0 auto 40px}
+.download-box h2{font-size:22px;color:#fff;margin-bottom:8px}
+.download-box p{font-size:14px;color:#999;margin-bottom:20px}
+.btn-download{display:inline-block;padding:16px 40px;background:#7c3aed;color:#fff;font-size:18px;font-weight:700;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-download:hover{background:#6d28d9;text-decoration:none;transform:translateY(-1px)}
+.btn-download:active{transform:translateY(0)}
+.download-sub{font-size:12px;color:#666;margin-top:12px}
+
+.steps{padding:40px 0;border-top:1px solid #1a1a1a}
+.steps h2{font-size:28px;color:#fff;margin-bottom:24px;text-align:center}
+.step-list{display:flex;flex-direction:column;gap:20px}
+.step{display:flex;gap:16px;align-items:flex-start}
+.step-num{background:#7c3aed;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.step h3{color:#fff;font-size:17px;margin-bottom:4px}
+.step p{color:#999;font-size:15px}
+
+.works{padding:40px 0;border-top:1px solid #1a1a1a}
+.works h2{font-size:28px;color:#fff;margin-bottom:24px;text-align:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#111;border:1px solid #222;border-radius:10px;padding:20px}
+.card h3{color:#fff;font-size:15px;margin-bottom:6px}
+.card p{color:#999;font-size:14px}
+
+.platforms{padding:40px 0;border-top:1px solid #1a1a1a;text-align:center}
+.platforms h2{font-size:28px;color:#fff;margin-bottom:16px}
+.platforms p{color:#999;font-size:15px;margin-bottom:16px}
+.plat-list{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.plat{background:#111;border:1px solid #222;padding:6px 14px;border-radius:6px;font-size:13px;color:#ccc}
+
+footer{padding:30px 0;border-top:1px solid #1a1a1a;text-align:center;color:#666;font-size:13px}
+
+@media(max-width:600px){
+  .hero h1{font-size:32px}
+  .grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<section class="hero">
+  <h1>Hand<span>off</span></h1>
+  <p>Switch between AI agents without losing context. One click captures your conversation, project, and decisions.</p>
+</section>
+
+<div class="download-box">
+  <h2>Download Handoff</h2>
+  <p>Browser extension + local project scanner. Works on Firefox and Chrome.</p>
+  <a href="https://github.com/rofomtl00/Handoff/archive/refs/heads/master.zip" class="btn-download">Download ZIP</a>
+  <div class="download-sub">
+    No account needed. No install wizard. Unzip and use.<br>
+    Extension folder inside: load it in your browser's extension settings.
+  </div>
+</div>
+
+<section class="steps">
+  <h2>How It Works</h2>
+  <div class="step-list">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div>
+        <h3>Download and unzip</h3>
+        <p>Click the download button above. Unzip the file anywhere on your computer.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div>
+        <h3>Load the browser extension</h3>
+        <p><strong>Firefox:</strong> Go to about:debugging → Load Temporary Add-on → select manifest.json from the extension folder.<br>
+        <strong>Chrome:</strong> Go to chrome://extensions → Developer mode ON → Load unpacked → select the extension folder.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div>
+        <h3>Click the Handoff icon on any AI chat</h3>
+        <p>Works on ChatGPT, Claude, Gemini, Grok, DeepSeek, Perplexity, Mistral, Kiro, Copilot, and 30+ more. Also works on creative AI tools like Runway, Midjourney, Suno.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div>
+        <h3>Click Extract → Copy → Paste into another agent</h3>
+        <p>Choose "Summary" to save tokens or "Full" for complete context. Or download as a file to attach. The receiving agent picks up exactly where you left off.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="works">
+  <h2>What It Captures</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>AI Conversations</h3>
+      <p>Messages, decisions made, files referenced, current task. From any chat AI.</p>
+    </div>
+    <div class="card">
+      <h3>Creative Projects</h3>
+      <p>Prompts, settings, parameters, generation history. From video, image, music, and 3D AI tools.</p>
+    </div>
+    <div class="card">
+      <h3>Code Projects</h3>
+      <p>File structure, imports, purposes, dependencies, git history. Scans your local folders.</p>
+    </div>
+    <div class="card">
+      <h3>Agent Memory</h3>
+      <p>Preferences, feedback, and decisions from prior conversations. No other tool does this.</p>
+    </div>
+  </div>
+</section>
+
+<section class="platforms">
+  <h2>40+ Platforms Supported</h2>
+  <p>Auto-detects which platform you're on. No configuration needed.</p>
+  <div class="plat-list">
+    <span class="plat">ChatGPT</span>
+    <span class="plat">Claude</span>
+    <span class="plat">Gemini</span>
+    <span class="plat">Copilot</span>
+    <span class="plat">Kiro</span>
+    <span class="plat">Grok</span>
+    <span class="plat">DeepSeek</span>
+    <span class="plat">Perplexity</span>
+    <span class="plat">Mistral</span>
+    <span class="plat">Poe</span>
+    <span class="plat">Qwen</span>
+    <span class="plat">HuggingChat</span>
+    <span class="plat">Cohere</span>
+    <span class="plat">Pi</span>
+    <span class="plat">You.com</span>
+    <span class="plat">Runway</span>
+    <span class="plat">Midjourney</span>
+    <span class="plat">Pika</span>
+    <span class="plat">Sora</span>
+    <span class="plat">Kling</span>
+    <span class="plat">Luma</span>
+    <span class="plat">Suno</span>
+    <span class="plat">Udio</span>
+    <span class="plat">Ideogram</span>
+    <span class="plat">Leonardo</span>
+    <span class="plat">Meshy</span>
+    <span class="plat">Figma</span>
+    <span class="plat">Canva</span>
+    <span class="plat">Notion AI</span>
+  </div>
+</section>
+
+<section style="padding:40px 0;border-top:1px solid #1a1a1a;text-align:center">
+  <h2 style="font-size:28px;color:#fff;margin-bottom:16px">Free and Open Source</h2>
+  <p style="color:#999;font-size:15px;margin-bottom:20px">No account. No subscription. No data leaves your computer.<br>Your conversations stay on your machine.</p>
+  <a href="https://github.com/rofomtl00/Handoff" style="color:#a78bfa;font-size:16px">View source on GitHub</a>
+</section>
+
+<footer>
+  <p>Handoff &copy; 2026. Your context, your control.</p>
+</footer>
+
+</div>
+</body>
+</html>
