@@ -12,7 +12,7 @@
   },
   "host_permissions": [
     "https://*/*",
-    "http://localhost:*/*"
+    "http://localhost/*"
   ],
   "action": {
     "default_popup": "popup.html",
