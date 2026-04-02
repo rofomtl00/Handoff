@@ -527,9 +527,186 @@ function openTarget() {
   }
 }
 
-// Attach event listeners
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('content' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1)).classList.add('active');
+    if (tab.dataset.tab === 'projects') checkServer();
+  });
+});
+
+// ═══════════════════════════════════════════════
+// LOCAL PROJECTS (via Handoff server on localhost:9090)
+// ═══════════════════════════════════════════════
+
+const SERVER = 'http://localhost:9090';
+let projectContext = '';
+let projectSummaryText = '';
+
+async function checkServer() {
+  const statusEl = document.getElementById('serverStatus');
+  try {
+    const r = await fetch(SERVER + '/api/projects', {signal: AbortSignal.timeout(2000)});
+    if (r.ok) {
+      statusEl.className = 'status status-ok';
+      statusEl.textContent = 'Connected to local Handoff server';
+      document.getElementById('projectsOnline').style.display = 'block';
+      document.getElementById('projectsOffline').style.display = 'none';
+      loadProjects();
+    } else {
+      throw new Error('bad response');
+    }
+  } catch(e) {
+    statusEl.className = 'status status-warn';
+    statusEl.textContent = 'Local server not running';
+    document.getElementById('projectsOnline').style.display = 'none';
+    document.getElementById('projectsOffline').style.display = 'block';
+  }
+}
+
+async function loadProjects() {
+  try {
+    const r = await fetch(SERVER + '/api/projects');
+    const projects = await r.json();
+    const list = document.getElementById('projectList');
+    if (!projects.length) {
+      list.innerHTML = '<div class="empty">No projects added. Enter a folder path above.</div>';
+      return;
+    }
+    let h = '';
+    for (const p of projects) {
+      const escapedPath = p.path.replace(/'/g, "\\'");
+      h += '<div class="project-card">' +
+        '<h4>' + esc(p.name) + '</h4>' +
+        '<div class="meta">' + esc(p.path) + ' · ' + (p.files || 0) + ' files · ' + (p.lines || 0).toLocaleString() + ' lines · ' + (p.languages || '') + '</div>' +
+        '<div class="actions">' +
+        '<button class="btn btn-primary btn-sm" data-action="generate" data-path="' + esc(p.path) + '">Generate</button>' +
+        '<button class="btn btn-blue btn-sm" data-action="rescan" data-path="' + esc(p.path) + '">Rescan</button>' +
+        '<button class="btn btn-sm" style="background:#450a0a;color:#ef4444" data-action="remove" data-path="' + esc(p.path) + '">Remove</button>' +
+        '</div></div>';
+    }
+    list.innerHTML = h;
+    // Attach click handlers
+    list.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const path = btn.dataset.path;
+        if (action === 'generate') generateProject(path);
+        else if (action === 'rescan') rescanProject(path);
+        else if (action === 'remove') removeProject(path);
+      });
+    });
+  } catch(e) {
+    document.getElementById('projectList').innerHTML = '<div class="empty">Error loading projects</div>';
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function addProject() {
+  const input = document.getElementById('addPath');
+  const path = input.value.trim();
+  if (!path) return;
+  try {
+    const r = await fetch(SERVER + '/api/projects/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      input.value = '';
+      loadProjects();
+    } else {
+      alert(data.error || 'Failed to add');
+    }
+  } catch(e) {
+    alert('Server error: ' + e.message);
+  }
+}
+
+async function removeProject(path) {
+  await fetch(SERVER + '/api/projects/remove', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({path})
+  });
+  loadProjects();
+  document.getElementById('projectResult').style.display = 'none';
+}
+
+async function rescanProject(path) {
+  await fetch(SERVER + '/api/projects/scan', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({path})
+  });
+  loadProjects();
+}
+
+async function generateProject(path) {
+  try {
+    const r = await fetch(SERVER + '/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path})
+    });
+    const data = await r.json();
+    if (data.content) {
+      projectContext = data.content;
+      // Generate a summary from the full context (first 40 lines)
+      const lines = data.content.split('\n');
+      projectSummaryText = lines.slice(0, 40).join('\n') + '\n\n---\n*For full context, attach the downloaded HANDOFF.md file.*';
+
+      document.getElementById('projectStats').textContent = data.content.length.toLocaleString() + ' characters';
+      document.getElementById('projectPreview').textContent = data.content.slice(0, 800) + (data.content.length > 800 ? '\n...' : '');
+      document.getElementById('projectResult').style.display = 'block';
+    }
+  } catch(e) {
+    alert('Generate failed: ' + e.message);
+  }
+}
+
+function projectCopySummary() { copyClipboard(projectSummaryText, 'projectCopySummaryBtn'); }
+function projectCopyFull() { copyClipboard(projectContext, 'projectCopyBtn'); }
+function projectDownload() {
+  const blob = new Blob([projectContext], {type: 'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'HANDOFF.md';
+  a.click();
+  URL.revokeObjectURL(url);
+  const btn = document.getElementById('projectDownloadBtn');
+  const orig = btn.textContent;
+  btn.textContent = 'Saved!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
+// ═══════════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════════
+
+// This Page tab
 document.getElementById('extractBtn').addEventListener('click', doExtract);
 document.getElementById('copyBtn').addEventListener('click', copyContext);
 document.getElementById('copySummaryBtn').addEventListener('click', copySummary);
 document.getElementById('downloadBtn').addEventListener('click', downloadContext);
 document.getElementById('targetAgent').addEventListener('change', openTarget);
+
+// My Projects tab
+document.getElementById('addBtn').addEventListener('click', addProject);
+document.getElementById('addPath').addEventListener('keydown', e => { if (e.key === 'Enter') addProject(); });
+document.getElementById('projectCopySummaryBtn').addEventListener('click', projectCopySummary);
+document.getElementById('projectCopyBtn').addEventListener('click', projectCopyFull);
+document.getElementById('projectDownloadBtn').addEventListener('click', projectDownload);
