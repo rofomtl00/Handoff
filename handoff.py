@@ -30,6 +30,61 @@ AGENT_CONTEXT_FILES = [
     "ARCHITECTURE.md", "DECISIONS.md",
 ]
 
+# External memory locations — agent memories stored outside the project folder
+# These contain preferences, decisions, feedback, project context from prior conversations
+def _find_agent_memories(project_root: str) -> dict:
+    """Find agent memory files that reference this project."""
+    memories = {}
+    home = os.path.expanduser("~")
+    project_name = os.path.basename(project_root).lower()
+    project_path_escaped = project_root.replace("/", "-").lstrip("-")
+
+    # Claude Code memory: ~/.claude/projects/<escaped-path>/memory/
+    claude_memory_dirs = [
+        os.path.join(home, ".claude", "projects", project_path_escaped, "memory"),
+    ]
+    # Also check all claude project dirs for matching project name
+    claude_projects = os.path.join(home, ".claude", "projects")
+    if os.path.isdir(claude_projects):
+        for d in os.listdir(claude_projects):
+            mem_dir = os.path.join(claude_projects, d, "memory")
+            if os.path.isdir(mem_dir):
+                # Check if MEMORY.md references this project
+                index = os.path.join(mem_dir, "MEMORY.md")
+                if os.path.exists(index):
+                    try:
+                        with open(index, "r", errors="ignore") as f:
+                            content = f.read()
+                        if project_name in content.lower():
+                            claude_memory_dirs.append(mem_dir)
+                    except Exception:
+                        pass
+
+    for mem_dir in set(claude_memory_dirs):
+        if not os.path.isdir(mem_dir):
+            continue
+        for fname in os.listdir(mem_dir):
+            if not fname.endswith(".md"):
+                continue
+            fpath = os.path.join(mem_dir, fname)
+            try:
+                with open(fpath, "r", errors="ignore") as f:
+                    content = f.read(20000)
+                # Only include memories that reference this project
+                if (project_name in content.lower() or
+                        fname == "MEMORY.md" or
+                        "feedback" in fname.lower() or
+                        "user" in fname.lower()):
+                    memories[f"claude-memory/{fname}"] = content
+            except Exception:
+                pass
+
+    # Cursor memory: check .cursorrules in project
+    # Aider: check .aider.chat.history.md in project
+    # These are already covered by AGENT_CONTEXT_FILES scan
+
+    return memories
+
 # Files that reveal project type and structure
 PROJECT_MARKERS = {
     "package.json": "javascript/node",
@@ -403,6 +458,9 @@ def generate_handoff(root: str, include_content: bool = False) -> str:
     scan = scan_project(root)
     git = read_git_info(root)
     deps = read_dependencies(root)
+    agent_memories = _find_agent_memories(root)
+    # Merge memories into agent_contexts for decision extraction
+    scan["agent_contexts"].update(agent_memories)
     decisions = extract_decisions(scan["agent_contexts"])
 
     md = []
@@ -552,13 +610,31 @@ def generate_handoff(root: str, include_content: bool = False) -> str:
             md.append(f"- *...and {len(deps) - 30} more*")
         md.append(f"")
 
-    # Existing agent context
-    for path, content in scan["agent_contexts"].items():
-        if path == "README.md":
-            continue  # Already shown above
+    # Agent memories — preferences, decisions, feedback from prior conversations
+    memory_files = {k: v for k, v in scan["agent_contexts"].items() if k.startswith("claude-memory/")}
+    if memory_files:
+        md.append(f"## Agent Memory (from prior conversations)")
+        md.append(f"")
+        md.append(f"These are memories saved by an AI agent during previous work on this project. They contain user preferences, key decisions, feedback, and project context that survived across conversations.")
+        md.append(f"")
+        for path, content in memory_files.items():
+            fname = path.replace("claude-memory/", "")
+            md.append(f"### {fname}")
+            md.append(f"")
+            lines = content.strip().split("\n")
+            for line in lines[:60]:
+                md.append(line)
+            if len(lines) > 60:
+                md.append(f"")
+                md.append(f"*(Truncated — {len(lines)} lines total)*")
+            md.append(f"")
+
+    # Other existing agent context (CLAUDE.md, .cursorrules, etc.)
+    other_contexts = {k: v for k, v in scan["agent_contexts"].items()
+                      if k != "README.md" and not k.startswith("claude-memory/")}
+    for path, content in other_contexts.items():
         md.append(f"## Existing Context: {path}")
         md.append(f"")
-        # Truncate long files
         lines = content.strip().split("\n")
         for line in lines[:100]:
             md.append(line)
