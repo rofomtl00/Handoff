@@ -86,6 +86,38 @@ def start_server():
     return {"ok": False, "error": "Server started but not responding yet. Try again in a few seconds."}
 
 
+def browse_folder():
+    """Open a native folder picker dialog and return the selected path."""
+    # Try zenity first (Linux), then kdialog, then tkinter
+    for cmd in [
+        ['zenity', '--file-selection', '--directory', '--title=Select Project Folder'],
+        ['kdialog', '--getexistingdirectory', os.path.expanduser('~')],
+    ]:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if r.returncode == 0 and r.stdout.strip():
+                return {"ok": True, "path": r.stdout.strip()}
+        except FileNotFoundError:
+            continue
+        except Exception:
+            continue
+
+    # Fallback: tkinter
+    try:
+        py = check_python()
+        if py:
+            r = subprocess.run(
+                [py, '-c', 'import tkinter as tk; from tkinter import filedialog; root=tk.Tk(); root.withdraw(); p=filedialog.askdirectory(title="Select Project Folder"); print(p); root.destroy()'],
+                capture_output=True, text=True, timeout=30
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return {"ok": True, "path": r.stdout.strip()}
+    except Exception:
+        pass
+
+    return {"ok": False, "error": "No folder picker available"}
+
+
 def main():
     while True:
         msg = read_message()
@@ -101,6 +133,10 @@ def main():
 
         elif action == 'start':
             result = start_server()
+            send_message(result)
+
+        elif action == 'browse':
+            result = browse_folder()
             send_message(result)
 
         elif action == 'ping':

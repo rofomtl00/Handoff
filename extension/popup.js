@@ -723,6 +723,23 @@ document.getElementById('targetAgent').addEventListener('change', openTarget);
 // My Projects tab
 document.getElementById('addBtn').addEventListener('click', addProject);
 document.getElementById('addPath').addEventListener('keydown', e => { if (e.key === 'Enter') addProject(); });
+document.getElementById('browseBtn').addEventListener('click', browseFolder);
+
+async function browseFolder() {
+  const btn = document.getElementById('browseBtn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'browse'});
+    if (response && response.ok && response.path) {
+      document.getElementById('addPath').value = response.path;
+    }
+  } catch(e) {
+    // Native messaging not available — user types path manually
+  }
+  btn.disabled = false;
+  btn.textContent = 'Browse';
+}
 document.getElementById('projectCopySummaryBtn').addEventListener('click', projectCopySummary);
 document.getElementById('projectCopyBtn').addEventListener('click', projectCopyFull);
 document.getElementById('projectDownloadBtn').addEventListener('click', projectDownload);
