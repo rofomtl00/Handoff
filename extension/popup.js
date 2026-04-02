@@ -563,9 +563,25 @@ async function checkServer() {
       throw new Error('bad response');
     }
   } catch(e) {
-    statusEl.className = 'status status-warn';
-    statusEl.textContent = 'Local server not running';
+    // Server not running — auto-start it
+    statusEl.className = 'status status-working';
+    statusEl.textContent = 'Starting local server...';
     document.getElementById('projectsOnline').style.display = 'none';
+    document.getElementById('projectsOffline').style.display = 'none';
+    try {
+      const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'start'});
+      if (response && response.ok) {
+        statusEl.className = 'status status-ok';
+        statusEl.textContent = 'Connected to local Handoff server';
+        document.getElementById('projectsOnline').style.display = 'block';
+        loadProjects();
+        return;
+      }
+    } catch(nativeErr) {
+      // Native messaging not available — show manual button
+    }
+    statusEl.className = 'status status-warn';
+    statusEl.textContent = 'Could not auto-start server';
     document.getElementById('projectsOffline').style.display = 'block';
   }
 }
