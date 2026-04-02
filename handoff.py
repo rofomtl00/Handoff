@@ -64,7 +64,7 @@ SKIP_DIRS = {
     "coverage", ".coverage", "htmlcov",
 }
 
-# Extensions to analyze
+# Extensions to analyze (code — read contents)
 CODE_EXTENSIONS = {
     ".py", ".js", ".ts", ".tsx", ".jsx",
     ".go", ".rs", ".java", ".kt", ".scala",
@@ -73,6 +73,34 @@ CODE_EXTENSIONS = {
     ".sql", ".sh", ".bash",
     ".html", ".css", ".scss",
     ".yaml", ".yml", ".toml", ".json",
+}
+
+# Media extensions (creative — count and categorize, don't read contents)
+MEDIA_EXTENSIONS = {
+    # Video
+    ".mp4": "video", ".mov": "video", ".avi": "video", ".mkv": "video",
+    ".webm": "video", ".flv": "video", ".wmv": "video", ".m4v": "video",
+    ".prproj": "video-project", ".drp": "video-project", ".fcpxml": "video-project",
+    ".aep": "video-project", ".nk": "video-project",
+    # Image
+    ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
+    ".webp": "image", ".svg": "image", ".bmp": "image", ".tiff": "image",
+    ".psd": "image-project", ".ai": "image-project", ".xcf": "image-project",
+    ".fig": "design-project", ".sketch": "design-project",
+    # Audio / Music
+    ".mp3": "audio", ".wav": "audio", ".flac": "audio", ".aac": "audio",
+    ".ogg": "audio", ".m4a": "audio", ".aif": "audio", ".aiff": "audio",
+    ".als": "music-project", ".flp": "music-project", ".logic": "music-project",
+    ".ptx": "music-project", ".rpp": "music-project",
+    # 3D
+    ".blend": "3d-project", ".fbx": "3d", ".obj": "3d", ".glb": "3d",
+    ".gltf": "3d", ".usd": "3d", ".usda": "3d", ".stl": "3d",
+    ".c4d": "3d-project", ".max": "3d-project", ".ma": "3d-project",
+    # Documents
+    ".pdf": "document", ".doc": "document", ".docx": "document",
+    ".txt": "text", ".rtf": "document", ".odt": "document",
+    # Data
+    ".csv": "data", ".xlsx": "data", ".xls": "data",
 }
 
 MAX_FILE_SIZE = 100_000  # Skip files larger than 100KB for content analysis
@@ -182,6 +210,7 @@ def scan_project(root: str) -> dict:
         "agent_contexts": {},
         "entry_points": [],
         "config_files": [],
+        "media_files": {},  # category → [{"path": str, "size_mb": float}]
         "total_files": 0,
         "total_lines": 0,
     }
@@ -241,6 +270,20 @@ def scan_project(root: str) -> dict:
                     })
                 except Exception:
                     pass
+
+            # Media files — categorize without reading contents
+            if ext in MEDIA_EXTENSIONS:
+                category = MEDIA_EXTENSIONS[ext]
+                if category not in result["media_files"]:
+                    result["media_files"][category] = []
+                try:
+                    size_mb = round(os.path.getsize(full_path) / (1024 * 1024), 2)
+                except Exception:
+                    size_mb = 0
+                result["media_files"][category].append({
+                    "path": rel_path,
+                    "size_mb": size_mb,
+                })
 
             # Entry points
             if fname in ("main.py", "app.py", "index.js", "index.ts", "main.go",
@@ -386,6 +429,16 @@ def generate_handoff(root: str, include_content: bool = False) -> str:
         remote = git["remotes"][0].split("\t")[1].split(" ")[0] if git["remotes"] else ""
         if remote:
             md.append(f"- **Repo:** {remote}")
+    # Detect project type from media files
+    if scan["media_files"]:
+        types = set()
+        for cat in scan["media_files"]:
+            if "video" in cat: types.add("video")
+            elif "image" in cat or "design" in cat: types.add("image/design")
+            elif "audio" in cat or "music" in cat: types.add("audio/music")
+            elif "3d" in cat: types.add("3D")
+        if types:
+            md.append(f"- **Media:** {', '.join(sorted(types))} project ({sum(len(f) for f in scan['media_files'].values())} assets)")
     md.append(f"")
 
     # README summary (first 20 lines)
@@ -457,6 +510,37 @@ def generate_handoff(root: str, include_content: bool = False) -> str:
         for cf in scan["config_files"]:
             md.append(f"- `{cf}`")
         md.append(f"")
+
+    # Media assets
+    if scan["media_files"]:
+        md.append(f"## Media Assets")
+        md.append(f"")
+        total_media = sum(len(files) for files in scan["media_files"].values())
+        total_size = sum(f["size_mb"] for files in scan["media_files"].values() for f in files)
+        md.append(f"**{total_media} files, {total_size:.1f} MB total**")
+        md.append(f"")
+        md.append(f"| Category | Count | Size | Examples |")
+        md.append(f"|----------|-------|------|----------|")
+        for category in sorted(scan["media_files"].keys()):
+            files = scan["media_files"][category]
+            cat_size = sum(f["size_mb"] for f in files)
+            examples = ", ".join(f"`{os.path.basename(f['path'])}`" for f in files[:3])
+            if len(files) > 3:
+                examples += f", +{len(files) - 3} more"
+            md.append(f"| {category} | {len(files)} | {cat_size:.1f} MB | {examples} |")
+        md.append(f"")
+
+        # List project files specifically (they contain settings)
+        project_files = []
+        for cat, files in scan["media_files"].items():
+            if "project" in cat:
+                project_files.extend(files)
+        if project_files:
+            md.append(f"### Project Files (contain settings/timeline)")
+            md.append(f"")
+            for pf in project_files:
+                md.append(f"- `{pf['path']}` ({pf['size_mb']} MB)")
+            md.append(f"")
 
     # Dependencies
     if deps:
