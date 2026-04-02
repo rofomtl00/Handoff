@@ -1,35 +1,98 @@
 /**
- * Handoff Content Script — Extracts conversations from AI chat platforms
+ * Handoff Content Script — Extracts context from AI platforms
  *
- * Each platform has a different DOM structure. This script detects which
- * platform we're on and extracts messages accordingly.
+ * Auto-detects mode from URL:
+ *   Chat mode: conversations from ChatGPT, Claude, Gemini, etc.
+ *   Creative mode: prompts, settings, parameters from Runway, Midjourney, Suno, etc.
  */
 
 (function() {
   'use strict';
 
-  // Detect which platform we're on
+  // Platform registry — maps URL patterns to platform ID and mode
+  const PLATFORM_REGISTRY = {
+    // Chat platforms
+    'chatgpt.com': {id: 'chatgpt', mode: 'chat'},
+    'chat.openai.com': {id: 'chatgpt', mode: 'chat'},
+    'claude.ai': {id: 'claude', mode: 'chat'},
+    'gemini.google.com': {id: 'gemini', mode: 'chat'},
+    'aistudio.google.com': {id: 'gemini', mode: 'chat'},
+    'labs.google': {id: 'gemini', mode: 'chat'},
+    'copilot.microsoft.com': {id: 'copilot', mode: 'chat'},
+    'kiro.dev': {id: 'kiro', mode: 'chat'},
+    'grok.com': {id: 'grok', mode: 'chat'},
+    'perplexity.ai': {id: 'perplexity', mode: 'chat'},
+    'poe.com': {id: 'poe', mode: 'chat'},
+    'chat.mistral.ai': {id: 'mistral', mode: 'chat'},
+    'chat.deepseek.com': {id: 'deepseek', mode: 'chat'},
+    'you.com': {id: 'you', mode: 'chat'},
+    'pi.ai': {id: 'pi', mode: 'chat'},
+    'chat.qwenlm.ai': {id: 'qwen', mode: 'chat'},
+    'huggingface.co': {id: 'huggingface', mode: 'chat'},
+    'coral.cohere.com': {id: 'cohere', mode: 'chat'},
+    'chat.reka.ai': {id: 'reka', mode: 'chat'},
+    'fireworks.ai': {id: 'fireworks', mode: 'chat'},
+    // Video platforms
+    'app.runwayml.com': {id: 'runway', mode: 'video'},
+    'runwayml.com': {id: 'runway', mode: 'video'},
+    'pika.art': {id: 'pika', mode: 'video'},
+    'klingai.com': {id: 'kling', mode: 'video'},
+    'lumalabs.ai': {id: 'luma', mode: 'video'},
+    'sora.com': {id: 'sora', mode: 'video'},
+    'haiper.ai': {id: 'haiper', mode: 'video'},
+    'minimax.io': {id: 'minimax', mode: 'video'},
+    'vidu.com': {id: 'vidu', mode: 'video'},
+    // Image platforms
+    'midjourney.com': {id: 'midjourney', mode: 'image'},
+    'ideogram.ai': {id: 'ideogram', mode: 'image'},
+    'leonardo.ai': {id: 'leonardo', mode: 'image'},
+    'dreamstudio.ai': {id: 'dreamstudio', mode: 'image'},
+    'stability.ai': {id: 'stability', mode: 'image'},
+    'playground.com': {id: 'playground', mode: 'image'},
+    'lexica.art': {id: 'lexica', mode: 'image'},
+    'nightcafe.studio': {id: 'nightcafe', mode: 'image'},
+    'openart.ai': {id: 'openart', mode: 'image'},
+    'tensor.art': {id: 'tensor', mode: 'image'},
+    'civitai.com': {id: 'civitai', mode: 'image'},
+    'getimg.ai': {id: 'getimg', mode: 'image'},
+    // Music platforms
+    'suno.com': {id: 'suno', mode: 'music'},
+    'udio.com': {id: 'udio', mode: 'music'},
+    'soundraw.io': {id: 'soundraw', mode: 'music'},
+    'aiva.ai': {id: 'aiva', mode: 'music'},
+    'boomy.com': {id: 'boomy', mode: 'music'},
+    // 3D platforms
+    'meshy.ai': {id: 'meshy', mode: '3d'},
+    'tripo3d.ai': {id: 'tripo', mode: '3d'},
+    'spline.design': {id: 'spline', mode: '3d'},
+    'kaedim.com': {id: 'kaedim', mode: '3d'},
+    // Design platforms
+    'figma.com': {id: 'figma', mode: 'design'},
+    'canva.com': {id: 'canva', mode: 'design'},
+    'framer.com': {id: 'framer', mode: 'design'},
+    // Writing platforms
+    'jasper.ai': {id: 'jasper', mode: 'writing'},
+    'copy.ai': {id: 'copyai', mode: 'writing'},
+    'writesonic.com': {id: 'writesonic', mode: 'writing'},
+    'notion.so': {id: 'notion', mode: 'writing'},
+    'grammarly.com': {id: 'grammarly', mode: 'writing'},
+  };
+
   function detectPlatform() {
     const host = window.location.hostname;
     const path = window.location.pathname;
-    if (host.includes('chatgpt.com') || host.includes('chat.openai.com')) return 'chatgpt';
-    if (host.includes('claude.ai')) return 'claude';
-    if (host.includes('gemini.google.com') || host.includes('aistudio.google.com') || host.includes('labs.google')) return 'gemini';
-    if (host.includes('copilot.microsoft.com')) return 'copilot';
-    if (host.includes('kiro.dev')) return 'kiro';
-    if (host.includes('grok.com') || (host.includes('x.com') && path.includes('grok'))) return 'grok';
-    if (host.includes('perplexity.ai')) return 'perplexity';
-    if (host.includes('poe.com')) return 'poe';
-    if (host.includes('chat.mistral.ai')) return 'mistral';
-    if (host.includes('chat.deepseek.com')) return 'deepseek';
-    if (host.includes('you.com')) return 'you';
-    if (host.includes('pi.ai')) return 'pi';
-    if (host.includes('chat.qwenlm.ai')) return 'qwen';
-    if (host.includes('huggingface.co')) return 'huggingface';
-    if (host.includes('coral.cohere.com')) return 'cohere';
-    if (host.includes('chat.reka.ai')) return 'reka';
-    if (host.includes('fireworks.ai')) return 'fireworks';
-    return 'unknown';
+
+    // Check for x.com/grok special case
+    if (host.includes('x.com') && path.includes('grok')) {
+      return {id: 'grok', mode: 'chat'};
+    }
+
+    // Match against registry
+    for (const [domain, info] of Object.entries(PLATFORM_REGISTRY)) {
+      if (host.includes(domain)) return info;
+    }
+
+    return {id: 'unknown', mode: 'unknown'};
   }
 
   // Extract conversation from ChatGPT
@@ -225,33 +288,236 @@
     return messages;
   }
 
-  // Main extraction function
+  // ═══════════════════════════════════════════════
+  // CREATIVE MODE EXTRACTORS
+  // ═══════════════════════════════════════════════
+
+  // Universal creative extractor — scans page for prompts, settings, parameters
+  function extractCreative() {
+    const result = {
+      prompts: [],
+      settings: {},
+      parameters: {},
+      generations: [],
+      timeline: [],
+      assets: [],
+    };
+
+    // ── PROMPTS: find text inputs, textareas, and prompt-like elements ──
+    const promptSelectors = [
+      'textarea', 'input[type="text"]',
+      '[class*="prompt"]', '[class*="Prompt"]',
+      '[data-testid*="prompt"]', '[aria-label*="prompt"]',
+      '[placeholder*="prompt"]', '[placeholder*="describe"]',
+      '[placeholder*="Enter"]', '[placeholder*="Type"]',
+      '[class*="input-area"]', '[class*="editor"]',
+    ];
+    const seenPrompts = new Set();
+    promptSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        const text = (el.value || el.innerText || el.textContent || '').trim();
+        if (text && text.length > 5 && text.length < 5000 && !seenPrompts.has(text)) {
+          seenPrompts.add(text);
+          result.prompts.push({
+            text: text,
+            source: el.tagName.toLowerCase() + (el.className ? '.' + el.className.split(' ')[0] : ''),
+          });
+        }
+      });
+    });
+
+    // ── SETTINGS: find dropdowns, sliders, toggles, number inputs ──
+    // Dropdowns / selects
+    document.querySelectorAll('select, [role="listbox"], [role="combobox"]').forEach(el => {
+      const label = _findLabel(el);
+      const value = el.value || el.innerText?.trim().split('\n')[0] || '';
+      if (label && value) {
+        result.settings[label] = value;
+      }
+    });
+
+    // Sliders / range inputs
+    document.querySelectorAll('input[type="range"], [role="slider"]').forEach(el => {
+      const label = _findLabel(el);
+      const value = el.value || el.getAttribute('aria-valuenow') || '';
+      if (label && value) {
+        result.settings[label] = value;
+      }
+    });
+
+    // Number inputs
+    document.querySelectorAll('input[type="number"]').forEach(el => {
+      const label = _findLabel(el);
+      if (label && el.value) {
+        result.settings[label] = el.value;
+      }
+    });
+
+    // Toggles / checkboxes
+    document.querySelectorAll('input[type="checkbox"], [role="switch"]').forEach(el => {
+      const label = _findLabel(el);
+      if (label) {
+        result.settings[label] = el.checked ? 'on' : 'off';
+      }
+    });
+
+    // ── PARAMETERS: look for key-value displays (often in sidebars/panels) ──
+    const paramPatterns = [
+      '[class*="parameter"]', '[class*="Parameter"]',
+      '[class*="setting"]', '[class*="Setting"]',
+      '[class*="config"]', '[class*="detail"]',
+      '[class*="metadata"]', '[class*="info-panel"]',
+      '[class*="sidebar"] label', '[class*="panel"] label',
+    ];
+    paramPatterns.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        const text = el.innerText?.trim();
+        if (text && text.includes(':')) {
+          const parts = text.split(':');
+          const key = parts[0].trim();
+          const val = parts.slice(1).join(':').trim();
+          if (key && val && key.length < 50 && val.length < 200) {
+            result.parameters[key] = val;
+          }
+        }
+      });
+    });
+
+    // ── GENERATIONS: find generated content cards/thumbnails ──
+    const genSelectors = [
+      '[class*="generation"]', '[class*="Generation"]',
+      '[class*="result"]', '[class*="output"]',
+      '[class*="gallery"] img', '[class*="grid"] img',
+      '[class*="preview"]', '[class*="thumbnail"]',
+      'video[src]', 'audio[src]',
+    ];
+    genSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        const gen = {};
+        if (el.tagName === 'IMG') {
+          gen.type = 'image';
+          gen.src = el.src || el.getAttribute('data-src') || '';
+          gen.alt = el.alt || '';
+        } else if (el.tagName === 'VIDEO') {
+          gen.type = 'video';
+          gen.src = el.src || el.querySelector('source')?.src || '';
+        } else if (el.tagName === 'AUDIO') {
+          gen.type = 'audio';
+          gen.src = el.src || el.querySelector('source')?.src || '';
+        } else {
+          gen.type = 'content';
+          gen.text = el.innerText?.trim().slice(0, 500);
+        }
+        if (gen.src || gen.text) {
+          result.generations.push(gen);
+        }
+      });
+    });
+
+    // Dedupe generations by src
+    const seenSrc = new Set();
+    result.generations = result.generations.filter(g => {
+      if (g.src) {
+        if (seenSrc.has(g.src)) return false;
+        seenSrc.add(g.src);
+      }
+      return true;
+    }).slice(0, 20);
+
+    // ── TIMELINE: look for timeline/sequence elements (video editors) ──
+    const timelineEls = document.querySelectorAll(
+      '[class*="timeline"], [class*="Timeline"], [class*="sequence"], [class*="keyframe"]'
+    );
+    timelineEls.forEach(el => {
+      const text = el.innerText?.trim();
+      if (text && text.length > 3 && text.length < 500) {
+        result.timeline.push(text);
+      }
+    });
+    result.timeline = result.timeline.slice(0, 10);
+
+    // ── PAGE-LEVEL: grab visible text that looks like project info ──
+    const headings = document.querySelectorAll('h1, h2, h3, [class*="title"], [class*="Title"], [class*="project-name"]');
+    headings.forEach(el => {
+      const text = el.innerText?.trim();
+      if (text && text.length > 2 && text.length < 100) {
+        result.parameters['_heading_' + result.assets.length] = text;
+      }
+    });
+
+    return result;
+  }
+
+  // Helper: find label text near a form element
+  function _findLabel(el) {
+    // Check for associated label
+    if (el.id) {
+      const label = document.querySelector('label[for="' + el.id + '"]');
+      if (label) return label.innerText?.trim();
+    }
+    // Check for aria-label
+    const ariaLabel = el.getAttribute('aria-label');
+    if (ariaLabel) return ariaLabel.trim();
+    // Check for nearby label (parent or sibling)
+    const parent = el.closest('label, [class*="field"], [class*="form-group"], [class*="control"]');
+    if (parent) {
+      const labelEl = parent.querySelector('label, span, [class*="label"]');
+      if (labelEl && labelEl !== el) {
+        const text = labelEl.innerText?.trim();
+        if (text && text.length < 50) return text;
+      }
+    }
+    // Check placeholder
+    const ph = el.getAttribute('placeholder');
+    if (ph) return ph.trim();
+    // Check title
+    const title = el.getAttribute('title');
+    if (title) return title.trim();
+    return '';
+  }
+
+  // ═══════════════════════════════════════════════
+  // MAIN EXTRACTION
+  // ═══════════════════════════════════════════════
+
   function extract() {
-    const platform = detectPlatform();
+    const {id: platform, mode} = detectPlatform();
     let messages = [];
+    let creative = null;
 
-    switch (platform) {
-      case 'chatgpt': messages = extractChatGPT(); break;
-      case 'claude': messages = extractClaude(); break;
-      case 'gemini': messages = extractGemini(); break;
-      case 'copilot': messages = extractCopilot(); break;
-      default: messages = extractGeneric(); break;
+    if (mode === 'chat' || mode === 'unknown') {
+      // Chat extraction
+      switch (platform) {
+        case 'chatgpt': messages = extractChatGPT(); break;
+        case 'claude': messages = extractClaude(); break;
+        case 'gemini': messages = extractGemini(); break;
+        case 'copilot': messages = extractCopilot(); break;
+        default: messages = extractGeneric(); break;
+      }
+      if (messages.length === 0 && platform !== 'unknown') {
+        messages = extractGeneric();
+      }
     }
 
-    // If platform-specific extractor failed, try generic as fallback
-    if (messages.length === 0 && platform !== 'unknown') {
-      messages = extractGeneric();
+    if (mode !== 'chat') {
+      // Creative extraction — always run for creative platforms
+      creative = extractCreative();
+      // Also try chat extraction as fallback (some creative tools have chat interfaces)
+      if (!creative.prompts.length && !Object.keys(creative.settings).length) {
+        messages = extractGeneric();
+      }
     }
 
-    // Get page title for context
     const title = document.title || '';
     const url = window.location.href;
 
     return {
       platform,
+      mode,
       title,
       url,
       messages,
+      creative,
       extracted_at: new Date().toISOString(),
       message_count: messages.length,
     };
