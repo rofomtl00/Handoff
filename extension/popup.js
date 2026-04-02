@@ -632,7 +632,15 @@ function esc(s) {
 async function addProject() {
   const input = document.getElementById('addPath');
   const path = input.value.trim();
-  if (!path) return;
+  if (!path) {
+    input.style.borderColor = '#ef4444';
+    input.placeholder = 'Enter a folder path first';
+    setTimeout(() => { input.style.borderColor = '#333'; input.placeholder = 'Paste folder path or use dashboard'; }, 2000);
+    return;
+  }
+  const statusEl = document.getElementById('serverStatus');
+  statusEl.className = 'status status-working';
+  statusEl.textContent = 'Adding ' + path + '...';
   try {
     const r = await fetch(SERVER + '/api/projects/add', {
       method: 'POST',
@@ -642,12 +650,16 @@ async function addProject() {
     const data = await r.json();
     if (data.ok) {
       input.value = '';
+      statusEl.className = 'status status-ok';
+      statusEl.textContent = 'Project added!';
       loadProjects();
     } else {
-      alert(data.error || 'Failed to add');
+      statusEl.className = 'status status-err';
+      statusEl.textContent = data.error || 'Failed to add project';
     }
   } catch(e) {
-    alert('Server error: ' + e.message);
+    statusEl.className = 'status status-err';
+    statusEl.textContent = 'Server error: ' + e.message;
   }
 }
 
