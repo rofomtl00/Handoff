@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:380px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0}
+.header{background:#111;padding:14px 16px;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:16px;color:#fff}.header h1 span{color:#a78bfa}
+.header .ver{font-size:11px;color:#666}
+.main{padding:16px}
+
+.btn{display:block;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;text-align:center;margin-bottom:8px}
+.btn-primary{background:#7c3aed;color:#fff}
+.btn-primary:hover{background:#6d28d9}
+.btn-green{background:#14532d;color:#22c55e}
+.btn-green:hover{background:#166534}
+.btn-blue{background:#1e3a5f;color:#60a5fa}
+.btn-blue:hover{background:#1e40af}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+
+.status{padding:12px;border-radius:8px;font-size:13px;margin-bottom:12px;line-height:1.5}
+.status-idle{background:#111;border:1px solid #222;color:#999}
+.status-ok{background:#14532d;border:1px solid #166534;color:#22c55e}
+.status-err{background:#450a0a;border:1px solid #7f1d1d;color:#ef4444}
+.status-working{background:#1a1a2e;border:1px solid #312e81;color:#a78bfa}
+
+.platform{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#111;border:1px solid #222;border-radius:6px;margin-bottom:12px;font-size:13px}
+.platform .dot{width:8px;height:8px;border-radius:50%}
+.dot-ok{background:#22c55e}
+.dot-err{background:#ef4444}
+.dot-unknown{background:#666}
+
+.result{background:#111;border:1px solid #222;border-radius:8px;padding:12px;margin-top:12px;display:none}
+.result h3{font-size:13px;color:#999;margin-bottom:8px}
+.result .preview{font-family:'SF Mono',Consolas,monospace;font-size:11px;color:#ccc;max-height:200px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;background:#0a0a0a;padding:8px;border-radius:4px}
+.result .stats{font-size:12px;color:#666;margin-top:8px}
+
+.target{margin-top:12px}
+.target label{display:block;font-size:12px;color:#999;margin-bottom:4px}
+.target select{width:100%;padding:8px;background:#111;border:1px solid #333;border-radius:6px;color:#fff;font-size:13px}
+
+.footer{padding:12px 16px;border-top:1px solid #222;text-align:center}
+.footer a{color:#666;font-size:11px;text-decoration:none}
+.footer a:hover{color:#999}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Hand<span>off</span></h1>
+  <span class="ver">v0.1.0</span>
+</div>
+
+<div class="main">
+  <div class="platform" id="platformInfo">
+    <div class="dot dot-unknown" id="platformDot"></div>
+    <span id="platformName">Detecting platform...</span>
+  </div>
+
+  <div class="status status-idle" id="status">
+    Click "Extract Conversation" to capture this chat and generate portable context for any other AI agent.
+  </div>
+
+  <button class="btn btn-primary" id="extractBtn" onclick="doExtract()">
+    Extract Conversation
+  </button>
+
+  <div class="result" id="result">
+    <h3>Context Generated</h3>
+    <div class="stats" id="stats"></div>
+    <div class="preview" id="preview"></div>
+    <button class="btn btn-green" onclick="copyContext()" style="margin-top:8px">
+      Copy to Clipboard
+    </button>
+
+    <div class="target">
+      <label>Quick paste into:</label>
+      <select id="targetAgent" onchange="openTarget()">
+        <option value="">— Select target agent —</option>
+        <option value="https://chatgpt.com/">ChatGPT</option>
+        <option value="https://claude.ai/new">Claude</option>
+        <option value="https://gemini.google.com/app">Gemini</option>
+        <option value="https://copilot.microsoft.com/">Copilot</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <a href="https://github.com/rofomtl00/Handoff" target="_blank">GitHub</a> ·
+  <a href="https://rofomtl00.github.io/Handoff/" target="_blank">Website</a>
+</div>
+
+<script>
+let extractedContext = '';
+
+const PLATFORMS = {
+  chatgpt: {name: 'ChatGPT', color: 'ok'},
+  claude: {name: 'Claude', color: 'ok'},
+  gemini: {name: 'Gemini', color: 'ok'},
+  copilot: {name: 'Copilot', color: 'ok'},
+  unknown: {name: 'Unknown page', color: 'err'},
+};
+
+// Detect platform on load
+chrome.tabs.query({active: true, currentWindow: true}, tabs => {
+  const url = tabs[0]?.url || '';
+  let platform = 'unknown';
+  if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) platform = 'chatgpt';
+  else if (url.includes('claude.ai')) platform = 'claude';
+  else if (url.includes('gemini.google.com')) platform = 'gemini';
+  else if (url.includes('copilot.microsoft.com')) platform = 'copilot';
+
+  const info = PLATFORMS[platform];
+  document.getElementById('platformDot').className = 'dot dot-' + info.color;
+  document.getElementById('platformName').textContent = info.name;
+
+  if (platform === 'unknown') {
+    document.getElementById('status').className = 'status status-err';
+    document.getElementById('status').textContent = 'Navigate to ChatGPT, Claude, Gemini, or Copilot first.';
+    document.getElementById('extractBtn').disabled = true;
+  }
+
+  // Remove current platform from target list
+  const select = document.getElementById('targetAgent');
+  for (let i = select.options.length - 1; i >= 0; i--) {
+    const opt = select.options[i];
+    if (platform === 'chatgpt' && opt.value.includes('chatgpt')) opt.remove();
+    if (platform === 'claude' && opt.value.includes('claude')) opt.remove();
+    if (platform === 'gemini' && opt.value.includes('gemini')) opt.remove();
+    if (platform === 'copilot' && opt.value.includes('copilot')) opt.remove();
+  }
+});
+
+async function doExtract() {
+  const btn = document.getElementById('extractBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Extracting...';
+  status.className = 'status status-working';
+  status.textContent = 'Reading conversation from page...';
+
+  try {
+    const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+
+    // Inject content script if not already there
+    try {
+      await chrome.scripting.executeScript({
+        target: {tabId: tab.id},
+        files: ['extractor.js']
+      });
+    } catch(e) {
+      // Already injected, that's fine
+    }
+
+    // Request extraction
+    const data = await chrome.tabs.sendMessage(tab.id, {action: 'extract'});
+
+    if (!data || !data.messages || data.messages.length === 0) {
+      status.className = 'status status-err';
+      status.textContent = 'No messages found. Make sure the conversation is visible on the page.';
+      btn.disabled = false;
+      btn.textContent = 'Try Again';
+      return;
+    }
+
+    // Generate HANDOFF context from conversation
+    extractedContext = generateContext(data);
+
+    // Show result
+    status.className = 'status status-ok';
+    status.textContent = `Extracted ${data.messages.length} messages from ${PLATFORMS[data.platform]?.name || data.platform}. Context ready!`;
+
+    document.getElementById('stats').textContent =
+      `${data.messages.length} messages · ${extractedContext.length.toLocaleString()} characters · ${data.platform}`;
+    document.getElementById('preview').textContent = extractedContext.slice(0, 1000) + (extractedContext.length > 1000 ? '\n\n...(truncated in preview)' : '');
+    document.getElementById('result').style.display = 'block';
+
+    btn.textContent = 'Re-Extract';
+    btn.disabled = false;
+
+  } catch(e) {
+    status.className = 'status status-err';
+    status.textContent = 'Extraction failed: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Try Again';
+  }
+}
+
+function generateContext(data) {
+  const lines = [];
+  lines.push('# HANDOFF — Conversation Context');
+  lines.push('');
+  lines.push(`Extracted from ${PLATFORMS[data.platform]?.name || data.platform} on ${new Date().toISOString().split('T')[0]}`);
+  lines.push(`Source: ${data.title}`);
+  lines.push(`Messages: ${data.messages.length}`);
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  // Extract project info from conversation
+  const allText = data.messages.map(m => m.content).join('\n');
+  const files = extractFileReferences(allText);
+  const decisions = extractDecisions(data.messages);
+  const currentTask = extractCurrentTask(data.messages);
+
+  // Project files mentioned
+  if (files.length > 0) {
+    lines.push('## Files Referenced');
+    lines.push('');
+    files.forEach(f => lines.push(`- \`${f}\``));
+    lines.push('');
+  }
+
+  // Key decisions
+  if (decisions.length > 0) {
+    lines.push('## Key Decisions Made');
+    lines.push('');
+    decisions.forEach(d => lines.push(`- ${d}`));
+    lines.push('');
+  }
+
+  // Current task
+  if (currentTask) {
+    lines.push('## Current Task');
+    lines.push('');
+    lines.push(currentTask);
+    lines.push('');
+  }
+
+  // Conversation summary (last 20 exchanges)
+  lines.push('## Conversation (recent)');
+  lines.push('');
+  const recent = data.messages.slice(-40); // Last 20 exchanges (40 messages)
+  recent.forEach(m => {
+    const role = m.role === 'user' ? '**User:**' : '**Assistant:**';
+    // Truncate very long messages
+    const content = m.content.length > 2000
+      ? m.content.slice(0, 2000) + '\n...(truncated)'
+      : m.content;
+    lines.push(`${role}`);
+    lines.push(content);
+    lines.push('');
+  });
+
+  lines.push('---');
+  lines.push('');
+  lines.push('*Generated by Handoff — https://github.com/rofomtl00/Handoff*');
+
+  return lines.join('\n');
+}
+
+function extractFileReferences(text) {
+  const files = new Set();
+  // Match file paths
+  const patterns = [
+    /[`"']([a-zA-Z0-9_/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|cpp|c|h|rb|php|yaml|yml|json|toml|md|html|css|sh|sql))[`"']/g,
+    /(?:^|\s)([\w/.-]+\.(py|js|ts|go|rs|java|yaml|json|md|html|css|sh))/gm,
+  ];
+  patterns.forEach(pat => {
+    let match;
+    while ((match = pat.exec(text)) !== null) {
+      const f = match[1];
+      if (f.length > 3 && f.length < 100 && !f.startsWith('http')) {
+        files.add(f);
+      }
+    }
+  });
+  return Array.from(files).sort().slice(0, 30);
+}
+
+function extractDecisions(messages) {
+  const decisions = [];
+  const keywords = ['removed', 'decided', 'changed to', 'switched to', 'fixed by',
+                     'the fix is', 'solution:', 'we should', "don't", 'never ', 'always ',
+                     'disabled', 'enabled', 'replaced', 'instead of'];
+  messages.forEach(m => {
+    if (m.role !== 'assistant') return;
+    const lines = m.content.split('\n');
+    lines.forEach(line => {
+      const lower = line.toLowerCase();
+      if (keywords.some(kw => lower.includes(kw))) {
+        const clean = line.trim().replace(/^[-*•]\s*/, '');
+        if (clean.length > 15 && clean.length < 200) {
+          decisions.push(clean);
+        }
+      }
+    });
+  });
+  // Deduplicate and limit
+  return [...new Set(decisions)].slice(0, 20);
+}
+
+function extractCurrentTask(messages) {
+  // Last user message is likely the current task
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') {
+      const content = messages[i].content.trim();
+      if (content.length > 10) {
+        return content.length > 500 ? content.slice(0, 500) + '...' : content;
+      }
+    }
+  }
+  return '';
+}
+
+async function copyContext() {
+  try {
+    await navigator.clipboard.writeText(extractedContext);
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.className = 'btn btn-green';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  } catch(e) {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = extractedContext;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+}
+
+function openTarget() {
+  const url = document.getElementById('targetAgent').value;
+  if (url) {
+    // Copy first, then open
+    navigator.clipboard.writeText(extractedContext).then(() => {
+      chrome.tabs.create({url});
+    });
+  }
+}
+</script>
+</body>
+</html>
