@@ -21,6 +21,7 @@ __version__ = "0.1.0"
 
 # Files to scan for existing agent context
 AGENT_CONTEXT_FILES = [
+    # AI agent context
     "CLAUDE.md", ".claude/settings.json",
     ".cursorrules", ".cursorignore",
     ".github/copilot-instructions.md",
@@ -28,6 +29,28 @@ AGENT_CONTEXT_FILES = [
     "AGENTS.md", "AI_CONTEXT.md",
     "README.md", "CONTRIBUTING.md",
     "ARCHITECTURE.md", "DECISIONS.md",
+    # Video/film project notes
+    "notes.txt", "notes.md", "NOTES.md",
+    "brief.txt", "brief.md", "brief.pdf",
+    "script.txt", "script.md", "screenplay.md",
+    "storyboard.md", "shotlist.md", "shot_list.md",
+    "edit_notes.txt", "edit_notes.md",
+    "color_notes.txt", "color_notes.md",
+    "sound_notes.txt", "mix_notes.txt",
+    # Video edit decision lists
+    "timeline.edl", "project.edl",
+    "timeline.xml", "project.xml",
+    "timeline.fcpxml",
+    # Music project notes
+    "lyrics.txt", "lyrics.md",
+    "mix_notes.md", "arrangement.md",
+    "session_notes.txt", "session_notes.md",
+    # Design project notes
+    "design_brief.md", "style_guide.md", "brand_guide.md",
+    "specs.md", "requirements.md",
+    # General project docs
+    "TODO.md", "TODO.txt", "CHANGELOG.md",
+    "PROJECT.md", "ABOUT.md",
 ]
 
 # External memory locations — agent memories stored outside the project folder
