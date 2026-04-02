@@ -12,7 +12,7 @@ import struct
 import subprocess
 import threading
 
-HANDOFF_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HANDOFF_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def read_message():
