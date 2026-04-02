@@ -2,11 +2,24 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 let extractedContext = '';
 
 const PLATFORMS = {
-  chatgpt: {name: 'ChatGPT', color: 'ok'},
-  claude: {name: 'Claude', color: 'ok'},
-  gemini: {name: 'Gemini', color: 'ok'},
-  copilot: {name: 'Copilot', color: 'ok'},
-  unknown: {name: 'Unknown page', color: 'err'},
+  chatgpt:     {name: 'ChatGPT',      color: 'ok', url: 'https://chatgpt.com/'},
+  claude:      {name: 'Claude',        color: 'ok', url: 'https://claude.ai/new'},
+  gemini:      {name: 'Gemini',        color: 'ok', url: 'https://gemini.google.com/app'},
+  copilot:     {name: 'Copilot',       color: 'ok', url: 'https://copilot.microsoft.com/'},
+  kiro:        {name: 'Kiro',          color: 'ok', url: 'https://kiro.dev/'},
+  grok:        {name: 'Grok',          color: 'ok', url: 'https://grok.com/'},
+  perplexity:  {name: 'Perplexity',    color: 'ok', url: 'https://www.perplexity.ai/'},
+  poe:         {name: 'Poe',           color: 'ok', url: 'https://poe.com/'},
+  mistral:     {name: 'Mistral',       color: 'ok', url: 'https://chat.mistral.ai/'},
+  deepseek:    {name: 'DeepSeek',      color: 'ok', url: 'https://chat.deepseek.com/'},
+  you:         {name: 'You.com',       color: 'ok', url: 'https://you.com/'},
+  pi:          {name: 'Pi',            color: 'ok', url: 'https://pi.ai/'},
+  qwen:        {name: 'Qwen',          color: 'ok', url: 'https://chat.qwenlm.ai/'},
+  huggingface: {name: 'HuggingChat',   color: 'ok', url: 'https://huggingface.co/chat/'},
+  cohere:      {name: 'Cohere',        color: 'ok', url: 'https://coral.cohere.com/'},
+  reka:        {name: 'Reka',          color: 'ok', url: 'https://chat.reka.ai/'},
+  fireworks:   {name: 'Fireworks',     color: 'ok', url: 'https://app.fireworks.ai/'},
+  unknown:     {name: 'Unknown page',  color: 'err', url: ''},
 };
 
 // Detect platform on load
@@ -17,8 +30,21 @@ const PLATFORMS = {
     let platform = 'unknown';
     if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) platform = 'chatgpt';
     else if (url.includes('claude.ai')) platform = 'claude';
-    else if (url.includes('gemini.google.com')) platform = 'gemini';
+    else if (url.includes('gemini.google.com') || url.includes('aistudio.google.com') || url.includes('labs.google')) platform = 'gemini';
     else if (url.includes('copilot.microsoft.com')) platform = 'copilot';
+    else if (url.includes('kiro.dev')) platform = 'kiro';
+    else if (url.includes('grok.com') || (url.includes('x.com') && url.includes('grok'))) platform = 'grok';
+    else if (url.includes('perplexity.ai')) platform = 'perplexity';
+    else if (url.includes('poe.com')) platform = 'poe';
+    else if (url.includes('chat.mistral.ai')) platform = 'mistral';
+    else if (url.includes('chat.deepseek.com')) platform = 'deepseek';
+    else if (url.includes('you.com')) platform = 'you';
+    else if (url.includes('pi.ai')) platform = 'pi';
+    else if (url.includes('chat.qwenlm.ai')) platform = 'qwen';
+    else if (url.includes('huggingface.co')) platform = 'huggingface';
+    else if (url.includes('coral.cohere.com')) platform = 'cohere';
+    else if (url.includes('chat.reka.ai')) platform = 'reka';
+    else if (url.includes('fireworks.ai')) platform = 'fireworks';
 
     const info = PLATFORMS[platform];
     document.getElementById('platformDot').className = 'dot dot-' + info.color;
@@ -30,14 +56,15 @@ const PLATFORMS = {
       document.getElementById('extractBtn').disabled = true;
     }
 
-    // Remove current platform from target list
+    // Build target dropdown dynamically — exclude current platform
     const select = document.getElementById('targetAgent');
-    for (let i = select.options.length - 1; i >= 0; i--) {
-      const opt = select.options[i];
-      if (platform === 'chatgpt' && opt.value.includes('chatgpt')) opt.remove();
-      if (platform === 'claude' && opt.value.includes('claude')) opt.remove();
-      if (platform === 'gemini' && opt.value.includes('gemini')) opt.remove();
-      if (platform === 'copilot' && opt.value.includes('copilot')) opt.remove();
+    select.innerHTML = '<option value="">— Select target agent —</option>';
+    for (const [key, info] of Object.entries(PLATFORMS)) {
+      if (key === 'unknown' || key === platform || !info.url) continue;
+      const opt = document.createElement('option');
+      opt.value = info.url;
+      opt.textContent = info.name;
+      select.appendChild(opt);
     }
   } catch(e) {
     document.getElementById('platformName').textContent = 'Error: ' + e.message;

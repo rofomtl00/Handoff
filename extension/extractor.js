@@ -11,10 +11,24 @@
   // Detect which platform we're on
   function detectPlatform() {
     const host = window.location.hostname;
+    const path = window.location.pathname;
     if (host.includes('chatgpt.com') || host.includes('chat.openai.com')) return 'chatgpt';
     if (host.includes('claude.ai')) return 'claude';
-    if (host.includes('gemini.google.com') || host.includes('aistudio.google.com')) return 'gemini';
+    if (host.includes('gemini.google.com') || host.includes('aistudio.google.com') || host.includes('labs.google')) return 'gemini';
     if (host.includes('copilot.microsoft.com')) return 'copilot';
+    if (host.includes('kiro.dev')) return 'kiro';
+    if (host.includes('grok.com') || (host.includes('x.com') && path.includes('grok'))) return 'grok';
+    if (host.includes('perplexity.ai')) return 'perplexity';
+    if (host.includes('poe.com')) return 'poe';
+    if (host.includes('chat.mistral.ai')) return 'mistral';
+    if (host.includes('chat.deepseek.com')) return 'deepseek';
+    if (host.includes('you.com')) return 'you';
+    if (host.includes('pi.ai')) return 'pi';
+    if (host.includes('chat.qwenlm.ai')) return 'qwen';
+    if (host.includes('huggingface.co')) return 'huggingface';
+    if (host.includes('coral.cohere.com')) return 'cohere';
+    if (host.includes('chat.reka.ai')) return 'reka';
+    if (host.includes('fireworks.ai')) return 'fireworks';
     return 'unknown';
   }
 
@@ -152,6 +166,65 @@
     return messages;
   }
 
+  // Generic extractor — works on most chat UIs by detecting common patterns
+  function extractGeneric() {
+    const messages = [];
+
+    // Strategy 1: look for role-based attributes
+    const roleEls = document.querySelectorAll('[data-role], [data-message-role], [data-author], [data-sender]');
+    if (roleEls.length > 0) {
+      roleEls.forEach(el => {
+        const role = (el.getAttribute('data-role') || el.getAttribute('data-message-role') ||
+                      el.getAttribute('data-author') || el.getAttribute('data-sender') || '').toLowerCase();
+        const isUser = role.includes('user') || role.includes('human');
+        const content = el.innerText.trim();
+        if (content && content.length > 2) {
+          messages.push({ role: isUser ? 'user' : 'assistant', content });
+        }
+      });
+      if (messages.length > 0) return messages;
+    }
+
+    // Strategy 2: look for common class patterns
+    const selectors = [
+      '[class*="user-message"], [class*="assistant-message"], [class*="bot-message"]',
+      '[class*="human"], [class*="ai-response"]',
+      '[class*="chat-message"], [class*="message-content"]',
+      '[class*="query"], [class*="response"]',
+      '[class*="turn"], [class*="bubble"]',
+    ];
+
+    for (const sel of selectors) {
+      const els = document.querySelectorAll(sel);
+      if (els.length >= 2) {
+        els.forEach(el => {
+          const cls = (el.className || '').toLowerCase();
+          const isUser = cls.includes('user') || cls.includes('human') || cls.includes('query');
+          const content = el.innerText.trim();
+          if (content && content.length > 2) {
+            messages.push({ role: isUser ? 'user' : 'assistant', content });
+          }
+        });
+        if (messages.length > 0) return messages;
+      }
+    }
+
+    // Strategy 3: look for markdown/prose blocks (alternating)
+    const blocks = document.querySelectorAll('.markdown, .prose, [class*="prose"], pre, [class*="code-block"]');
+    if (blocks.length >= 2) {
+      let isUser = true;
+      blocks.forEach(block => {
+        const content = block.innerText.trim();
+        if (content && content.length > 5) {
+          messages.push({ role: isUser ? 'user' : 'assistant', content });
+          isUser = !isUser;
+        }
+      });
+    }
+
+    return messages;
+  }
+
   // Main extraction function
   function extract() {
     const platform = detectPlatform();
@@ -162,7 +235,12 @@
       case 'claude': messages = extractClaude(); break;
       case 'gemini': messages = extractGemini(); break;
       case 'copilot': messages = extractCopilot(); break;
-      default: messages = [];
+      default: messages = extractGeneric(); break;
+    }
+
+    // If platform-specific extractor failed, try generic as fallback
+    if (messages.length === 0 && platform !== 'unknown') {
+      messages = extractGeneric();
     }
 
     // Get page title for context

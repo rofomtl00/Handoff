@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Handoff — AI Context Transfer",
-  "version": "0.1.0",
-  "description": "One-click transfer of AI conversations between ChatGPT, Claude, Gemini, and any other agent.",
+  "version": "0.2.0",
+  "description": "One-click transfer of AI conversations between any AI agents — ChatGPT, Claude, Gemini, Kiro, Grok, Perplexity, and more.",
   "permissions": ["activeTab", "tabs", "storage", "scripting"],
   "browser_specific_settings": {
     "gecko": {
@@ -17,7 +17,22 @@
     "https://gemini.google.com/*",
     "https://aistudio.google.com/*",
     "https://copilot.microsoft.com/*",
-    "http://localhost:9090/*"
+    "https://kiro.dev/*",
+    "https://grok.com/*",
+    "https://x.com/i/grok*",
+    "https://www.perplexity.ai/*",
+    "https://poe.com/*",
+    "https://chat.mistral.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://you.com/*",
+    "https://pi.ai/*",
+    "https://labs.google/*",
+    "https://chat.qwenlm.ai/*",
+    "https://huggingface.co/chat/*",
+    "https://coral.cohere.com/*",
+    "https://chat.reka.ai/*",
+    "https://app.fireworks.ai/*",
+    "http://localhost:*/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -35,7 +50,22 @@
         "https://claude.ai/*",
         "https://gemini.google.com/*",
         "https://aistudio.google.com/*",
-        "https://copilot.microsoft.com/*"
+        "https://copilot.microsoft.com/*",
+        "https://kiro.dev/*",
+        "https://grok.com/*",
+        "https://x.com/i/grok*",
+        "https://www.perplexity.ai/*",
+        "https://poe.com/*",
+        "https://chat.mistral.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://you.com/*",
+        "https://pi.ai/*",
+        "https://labs.google/*",
+        "https://chat.qwenlm.ai/*",
+        "https://huggingface.co/chat/*",
+        "https://coral.cohere.com/*",
+        "https://chat.reka.ai/*",
+        "https://app.fireworks.ai/*"
       ],
       "js": ["extractor.js"],
       "run_at": "document_idle"
