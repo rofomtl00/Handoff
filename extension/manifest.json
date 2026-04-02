@@ -3,7 +3,7 @@
   "name": "Handoff — AI Context Transfer",
   "version": "0.3.0",
   "description": "One-click context transfer between any AI platform — chat, video, image, music, 3D, design, writing.",
-  "permissions": ["activeTab", "tabs", "storage", "scripting"],
+  "permissions": ["activeTab", "tabs", "storage", "scripting", "nativeMessaging"],
   "browser_specific_settings": {
     "gecko": {
       "id": "handoff@rofomtl00",

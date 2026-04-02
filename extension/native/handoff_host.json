@@ -1,0 +1,7 @@
+{
+  "name": "handoff_host",
+  "description": "Handoff Native Messaging Host — starts local server, installs dependencies",
+  "path": "/home/rofo/Desktop/Handoff/extension/native/handoff_host.py",
+  "type": "stdio",
+  "allowed_extensions": ["handoff@rofomtl00"]
+}

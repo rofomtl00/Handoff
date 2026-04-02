@@ -710,3 +710,41 @@ document.getElementById('addPath').addEventListener('keydown', e => { if (e.key 
 document.getElementById('projectCopySummaryBtn').addEventListener('click', projectCopySummary);
 document.getElementById('projectCopyBtn').addEventListener('click', projectCopyFull);
 document.getElementById('projectDownloadBtn').addEventListener('click', projectDownload);
+document.getElementById('startServerBtn').addEventListener('click', startServer);
+
+async function startServer() {
+  const btn = document.getElementById('startServerBtn');
+  const progress = document.getElementById('startProgress');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  progress.style.display = 'block';
+  progress.textContent = 'Checking Python and dependencies...';
+
+  try {
+    // Use native messaging to start the server locally
+    const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'start'});
+    if (response && response.ok) {
+      progress.textContent = 'Server started!';
+      progress.style.color = '#22c55e';
+      // Switch to online view
+      setTimeout(() => {
+        document.getElementById('projectsOnline').style.display = 'block';
+        document.getElementById('projectsOffline').style.display = 'none';
+        document.getElementById('serverStatus').className = 'status status-ok';
+        document.getElementById('serverStatus').textContent = 'Connected to local Handoff server';
+        loadProjects();
+      }, 1000);
+    } else {
+      progress.textContent = response?.error || 'Failed to start server';
+      progress.style.color = '#ef4444';
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    }
+  } catch(e) {
+    // Native messaging not available — fallback to manual instructions
+    progress.innerHTML = 'Auto-start not available. Run this once in terminal:<br><code style="background:#111;padding:4px 8px;border-radius:4px;font-size:12px">cd ~/Desktop/Handoff && ./start.sh</code>';
+    progress.style.color = '#f59e0b';
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+  }
+}
