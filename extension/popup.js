@@ -726,21 +726,8 @@ document.getElementById('addPath').addEventListener('keydown', e => { if (e.key 
 document.getElementById('browseBtn').addEventListener('click', browseFolder);
 
 async function browseFolder() {
-  const btn = document.getElementById('browseBtn');
-  btn.disabled = true;
-  btn.textContent = '...';
-  try {
-    // Browse AND add in one step — avoids popup losing focus
-    const response = await api.runtime.sendNativeMessage('handoff_host', {action: 'browse_and_add'});
-    if (response && response.ok && response.path) {
-      // Project was added via native host → reload list
-      loadProjects();
-    }
-  } catch(e) {
-    // Native messaging not available
-  }
-  btn.disabled = false;
-  btn.textContent = 'Browse';
+  // Open the full dashboard in a tab — tabs don't lose focus like popups do
+  api.tabs.create({url: 'http://localhost:9090'});
 }
 document.getElementById('projectCopySummaryBtn').addEventListener('click', projectCopySummary);
 document.getElementById('projectCopyBtn').addEventListener('click', projectCopyFull);
