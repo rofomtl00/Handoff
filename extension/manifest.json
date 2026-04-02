@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "description": "One-click transfer of AI conversations between ChatGPT, Claude, Gemini, and any other agent.",
   "permissions": ["activeTab", "storage", "scripting"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "handoff@rofomtl00",
+      "strict_min_version": "109.0"
+    }
+  },
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",

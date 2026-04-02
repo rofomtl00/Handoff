@@ -179,8 +179,9 @@
     };
   }
 
-  // Listen for extraction requests from popup
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Listen for extraction requests from popup (Firefox/Chrome compatible)
+  const runtimeApi = typeof browser !== 'undefined' ? browser : chrome;
+  runtimeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'extract') {
       const data = extract();
       sendResponse(data);
