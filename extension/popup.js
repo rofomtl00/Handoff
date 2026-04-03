@@ -154,7 +154,7 @@ async function doExtract() {
   const check = await checkCanExtract();
   if (!check.allowed) {
     status.className = 'status status-err';
-    status.innerHTML = 'Daily limit reached (5 free extracts). <a href="https://rofomtl00.github.io/Handoff/#pro" target="_blank" style="color:#a78bfa;font-weight:600">Upgrade to Pro</a> for unlimited extracts — $4.99/mo.';
+    status.innerHTML = 'Daily limit reached (5 free extracts). <a href="https://handoff.lemonsqueezy.com/checkout/buy/eaf96772-7ab1-427b-867f-1c39c32cb3a0" target="_blank" style="color:#a78bfa;font-weight:600">Upgrade to Pro — $4.99</a> for unlimited extracts (one-time).';
     btn.disabled = false;
     btn.textContent = 'Extract';
     updateUsageBadge();
