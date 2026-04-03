@@ -1,6 +1,38 @@
 const api = typeof browser !== 'undefined' ? browser : chrome;
 let extractedContext = '';
 
+// ═══════════════════════════════════════════════
+// USAGE LIMITS — Free: 5 extracts/day, Pro: unlimited
+// ═══════════════════════════════════════════════
+const FREE_DAILY_LIMIT = 5;
+
+async function getUsageToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const data = await api.storage.local.get(['usage_date', 'usage_count', 'pro']);
+  if (data.pro) return {count: 0, limit: Infinity, pro: true};
+  if (data.usage_date === today) {
+    return {count: data.usage_count || 0, limit: FREE_DAILY_LIMIT, pro: false};
+  }
+  // New day — reset counter
+  await api.storage.local.set({usage_date: today, usage_count: 0});
+  return {count: 0, limit: FREE_DAILY_LIMIT, pro: false};
+}
+
+async function incrementUsage() {
+  const today = new Date().toISOString().slice(0, 10);
+  const data = await api.storage.local.get(['usage_date', 'usage_count']);
+  const count = (data.usage_date === today) ? (data.usage_count || 0) + 1 : 1;
+  await api.storage.local.set({usage_date: today, usage_count: count});
+  return count;
+}
+
+async function checkCanExtract() {
+  const usage = await getUsageToday();
+  if (usage.pro) return {allowed: true, remaining: Infinity};
+  const remaining = usage.limit - usage.count;
+  return {allowed: remaining > 0, remaining};
+}
+
 const PLATFORMS = {
   // Chat
   chatgpt:     {name: 'ChatGPT',      mode: 'chat',     color: 'ok', url: 'https://chatgpt.com/'},
@@ -117,6 +149,18 @@ const PLATFORMS = {
 async function doExtract() {
   const btn = document.getElementById('extractBtn');
   const status = document.getElementById('status');
+
+  // Check usage limit
+  const check = await checkCanExtract();
+  if (!check.allowed) {
+    status.className = 'status status-err';
+    status.innerHTML = 'Daily limit reached (5 free extracts). <a href="https://rofomtl00.github.io/Handoff/#pro" target="_blank" style="color:#a78bfa;font-weight:600">Upgrade to Pro</a> for unlimited extracts — $4.99/mo.';
+    btn.disabled = false;
+    btn.textContent = 'Extract';
+    updateUsageBadge();
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = 'Extracting...';
   status.className = 'status status-working';
@@ -157,6 +201,10 @@ async function doExtract() {
     // Generate HANDOFF context (full + summary)
     extractedContext = hasCreative ? generateCreativeContext(data) : generateContext(data);
     extractedSummary = generateSummary(data);
+
+    // Count this extraction
+    await incrementUsage();
+    updateUsageBadge();
 
     // Show result
     const mode = data.mode || 'chat';
@@ -529,6 +577,25 @@ function openTarget() {
     });
   }
 }
+
+async function updateUsageBadge() {
+  const usage = await getUsageToday();
+  const badge = document.getElementById('usageBadge');
+  if (!badge) return;
+  if (usage.pro) {
+    badge.textContent = 'Pro';
+    badge.style.background = '#14532d';
+    badge.style.color = '#22c55e';
+  } else {
+    const remaining = usage.limit - usage.count;
+    badge.textContent = remaining + '/' + usage.limit + ' free';
+    badge.style.background = remaining > 2 ? '#1a1a2e' : remaining > 0 ? '#451a03' : '#450a0a';
+    badge.style.color = remaining > 2 ? '#a78bfa' : remaining > 0 ? '#f59e0b' : '#ef4444';
+  }
+}
+
+// Show usage on load
+updateUsageBadge();
 
 // ═══════════════════════════════════════════════
 // TABS
